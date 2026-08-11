@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   XAYVEN — Design Tokens
+   XAYVEN is a deliberately dark-native brand (no light theme variant) —
+   surfaces are near-black, and electric purple is reserved for CTAs,
+   highlights, active states and light/glow. It is never a flood fill.
+   ========================================================================== */
+
+@theme {
+  /* ---- Surfaces ---- */
+  --color-bg: #07060a;              /* page background — near-black, slight violet tint */
+  --color-bg-raised: #0d0b12;       /* elevated panels */
+  --color-bg-elevated: #131019;     /* cards, inputs */
+  --color-bg-overlay: #17131f;      /* hover surfaces, popovers */
+
+  /* ---- Foreground ---- */
+  --color-fg: #f6f4f9;              /* primary text */
+  --color-fg-muted: #a9a3b8;        /* secondary text */
+  --color-fg-subtle: #726c82;       /* tertiary / disabled text */
+
+  /* ---- Borders ---- */
+  --color-border: rgba(246, 244, 249, 0.09);
+  --color-border-strong: rgba(246, 244, 249, 0.16);
+  --color-border-accent: rgba(168, 105, 255, 0.35);
+
+  /* ---- Accent: electric purple ---- */
+  --color-accent-100: #ece3ff;
+  --color-accent-300: #c9a8ff;
+  --color-accent-400: #ac7bff;
+  --color-accent-500: #9152ff;      /* primary accent */
+  --color-accent-600: #7c34f2;
+  --color-accent-700: #6423c9;
+  --color-accent-glow: rgba(145, 82, 255, 0.45);
+  --color-accent-glow-soft: rgba(145, 82, 255, 0.16);
+
+  /* ---- Feedback ---- */
+  --color-success: #35d399;
+  --color-error: #ff5c72;
+
+  /* ---- Radius ---- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-pill: 999px;
+
+  /* ---- Shadows ---- */
+  --shadow-soft: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  --shadow-elevated: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset, 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+  --shadow-glow-sm: 0 0 0 1px rgba(168, 105, 255, 0.35), 0 8px 24px -8px rgba(145, 82, 255, 0.45);
+  --shadow-glow-md: 0 0 0 1px rgba(168, 105, 255, 0.35), 0 16px 48px -12px rgba(145, 82, 255, 0.45);
+
+  /* ---- Motion ---- */
+  --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 320ms;
+  --duration-slow: 560ms;
+
+  /* ---- Typography ---- */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Fluid display type scale for hero / section headlines */
+  --text-display-1: clamp(2.75rem, 2rem + 3.2vw, 5.5rem);
+  --text-display-1--line-height: 1.02;
+  --text-display-1--letter-spacing: -0.02em;
+
+  --text-display-2: clamp(2.25rem, 1.7rem + 2.2vw, 3.75rem);
+  --text-display-2--line-height: 1.05;
+  --text-display-2--letter-spacing: -0.02em;
+
+  --text-h3: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem);
+  --text-h3--line-height: 1.2;
+  --text-h3--letter-spacing: -0.01em;
+
+  --breakpoint-xs: 22.5rem;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-feature-settings: "ss01" 1, "cv11" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-accent-500);
+  color: #0a0714;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Ambient background: a single controlled glow, not a flood of purple */
+.field-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.field-glow::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: min(64rem, 90vw);
+  height: min(64rem, 90vw);
+  transform: translateX(-50%);
+  background: radial-gradient(
+    closest-side,
+    var(--color-accent-glow-soft),
+    transparent 70%
+  );
+  filter: blur(40px);
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(246, 244, 249, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(246, 244, 249, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, var(--color-fg) 30%, var(--color-accent-300) 75%, var(--color-accent-400) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
