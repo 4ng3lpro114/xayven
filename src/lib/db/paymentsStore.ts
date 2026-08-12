@@ -113,6 +113,94 @@ export async function listClients(): Promise<Client[]> {
   return (data ?? []).map((row) => rowToClient(row as ClientRow));
 }
 
+/**
+ * Case/whitespace-insensitive client lookup by email — backs the lead →
+ * client conversion flow's find-before-create step (see
+ * src/lib/leads/conversion.ts). `normalizedEmail` must already be
+ * `.trim().toLowerCase()`'d by the caller; this function does not
+ * normalize it again, to keep the normalization rule defined in exactly
+ * one place.
+ */
+export async function getClientByNormalizedEmail(normalizedEmail: string): Promise<Client | null> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return (
+      [...clientsMemory.values()].find((c) => c.email.trim().toLowerCase() === normalizedEmail) ?? null
+    );
+  }
+
+  // `email` has no leading/trailing whitespace once written through this
+  // module (see createClientOrGetExisting below), so an ILIKE match against
+  // the already-normalized input is a correct case-insensitive equality
+  // check — not a substring search (no % wildcards are used).
+  const { data } = await supabase.from("clients").select("*").ilike("email", normalizedEmail).maybeSingle();
+  return data ? rowToClient(data as ClientRow) : null;
+}
+
+/**
+ * Insert-or-recover, specifically for the lead → client conversion flow.
+ * Deliberately does NOT share createClient()'s "any Supabase error falls
+ * back to memory" behavior above: falling back silently here would hide a
+ * real unique-constraint conflict (clients_email_normalized_unique_idx,
+ * see supabase/migrations/0003_lead_to_client.sql) behind a fabricated
+ * in-memory client, which defeats the entire point of detecting duplicates
+ * safely. Instead:
+ *   - a 23505 (unique_violation) is treated as "someone else already
+ *     created this client" and recovered by re-reading it — the same
+ *     recover-don't-duplicate pattern already used by
+ *     recordWebhookEventIfNew for payment_webhook_events;
+ *   - any OTHER error is a real failure and is thrown, never swallowed.
+ */
+export async function createClientOrGetExisting(input: {
+  name: string;
+  email: string;
+  phone?: string | null;
+}): Promise<{ client: Client; created: boolean }> {
+  const supabase = getSupabaseAdmin();
+  const timestamp = nowIso();
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const draft: Client = {
+    id: randomUUID(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    name: input.name,
+    email: input.email,
+    phone: input.phone ?? null,
+  };
+
+  if (!supabase) {
+    // In-memory mode has no unique constraint to race against — a linear
+    // scan is enough to stay consistent with the rest of this module's
+    // memory-mode behavior.
+    const existing = [...clientsMemory.values()].find(
+      (c) => c.email.trim().toLowerCase() === normalizedEmail
+    );
+    if (existing) return { client: existing, created: false };
+    clientsMemory.set(draft.id, draft);
+    return { client: draft, created: true };
+  }
+
+  const { data, error } = await supabase
+    .from("clients")
+    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone })
+    .select("*")
+    .single();
+
+  if (!error && data) {
+    return { client: rowToClient(data as ClientRow), created: true };
+  }
+
+  if (error?.code === "23505") {
+    const existing = await getClientByNormalizedEmail(normalizedEmail);
+    if (existing) return { client: existing, created: false };
+  }
+
+  // A real, unhidden failure — never fabricate a client here.
+  throw new Error(
+    `[leads] createClientOrGetExisting failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------

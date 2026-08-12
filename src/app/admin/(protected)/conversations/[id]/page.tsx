@@ -76,7 +76,7 @@ export default async function ConversationDetailPage({ params }: PageProps) {
             Contactar por WhatsApp
           </a>
         )}
-        <ConversationActions conversationId={conversation.id} currentStatus={conversation.leadStatus} />
+        <ConversationActions conversationId={conversation.id} clientId={conversation.clientId} />
       </div>
 
       {conversation.aiSummary && (

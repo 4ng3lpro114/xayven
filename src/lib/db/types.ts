@@ -24,6 +24,11 @@ export interface Conversation {
   status: "active" | "closed";
   messages: ChatMessage[];
 
+  /** Set once (and only once, permanently) this lead is converted into a
+   *  real `clients` row — see src/lib/leads/conversion.ts. Null for the
+   *  overwhelming majority of conversations, which never convert. */
+  clientId: string | null;
+
   visitorName: string | null;
   visitorEmail: string | null;
   /** Only ever filled in if the visitor shares it voluntarily in the chat —

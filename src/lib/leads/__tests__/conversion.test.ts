@@ -1,0 +1,206 @@
+import { describe, it, expect } from "vitest";
+import { randomBytes } from "node:crypto";
+import { convertConversationToClient, LeadConversionError } from "@/lib/leads/conversion";
+import {
+  getOrCreateConversation,
+  saveConversation,
+  getConversationById,
+} from "@/lib/db/conversationStore";
+import type { Conversation } from "@/lib/db/types";
+
+// No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in the test environment, so
+// both conversationStore.ts and paymentsStore.ts transparently use their
+// in-memory fallback — real (if ephemeral) read/write round-trips through
+// the actual store functions, not mocks. Same pattern as
+// src/lib/payments/__tests__/service.test.ts.
+
+async function makeSeededConversation(overrides: Partial<Conversation> = {}): Promise<Conversation> {
+  const sessionId = `test-session-${randomBytes(8).toString("hex")}`;
+  const base = await getOrCreateConversation(sessionId, "es");
+  return saveConversation({ ...base, ...overrides });
+}
+
+describe("convertConversationToClient — happy path", () => {
+  it("lead válido (nombre + email + teléfono) → crea el cliente con los datos correctos", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Juan",
+      visitorEmail: "juan@email.com",
+      visitorPhone: "3000000000",
+      company: "Restaurante La Montaña",
+      need: "sitio web",
+      budget: "$2M-$4M",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.client.name).toBe("Juan");
+    expect(result.client.email).toBe("juan@email.com");
+    expect(result.client.phone).toBe("3000000000");
+    expect(result.clientWasCreated).toBe(true);
+    expect(result.nameDerivedFromCompany).toBe(false);
+  });
+
+  it("conversation.clientId queda vinculado al cliente creado", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Ana",
+      visitorEmail: "ana@email.com",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.conversation.clientId).toBe(result.client.id);
+
+    const reloaded = await getConversationById(conversation.id);
+    expect(reloaded?.clientId).toBe(result.client.id);
+  });
+
+  it("lead_status pasa a 'client' tras la conversión", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Carlos",
+      visitorEmail: "carlos@email.com",
+      leadStatus: "hot",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.conversation.leadStatus).toBe("client");
+  });
+
+  it("la conversación conserva TODO el contexto que la IA capturó — nada se pierde ni se copia a clients", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Laura",
+      visitorEmail: "laura@email.com",
+      company: "Panadería Sol",
+      website: "https://panaderiasol.com",
+      projectType: "ecommerce",
+      need: "vender pan online",
+      goal: "aumentar ventas",
+      budget: "$3M-$5M",
+      urgency: "alta",
+      aiSummary: "Visitante interesada en ecommerce para su panadería.",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.conversation.company).toBe("Panadería Sol");
+    expect(result.conversation.website).toBe("https://panaderiasol.com");
+    expect(result.conversation.projectType).toBe("ecommerce");
+    expect(result.conversation.need).toBe("vender pan online");
+    expect(result.conversation.goal).toBe("aumentar ventas");
+    expect(result.conversation.budget).toBe("$3M-$5M");
+    expect(result.conversation.urgency).toBe("alta");
+    expect(result.conversation.aiSummary).toBe("Visitante interesada en ecommerce para su panadería.");
+
+    // None of that context is present anywhere on the Client type at all —
+    // this is a compile-time guarantee (Client only has id/createdAt/
+    // updatedAt/name/email/phone), reinforced here at runtime.
+    expect(result.client).not.toHaveProperty("company");
+    expect(result.client).not.toHaveProperty("budget");
+    expect(result.client).not.toHaveProperty("aiSummary");
+  });
+});
+
+describe("convertConversationToClient — deduplicación por email", () => {
+  it("cliente ya existente con el mismo email → no duplica, vincula al existente", async () => {
+    const first = await makeSeededConversation({
+      visitorName: "Pedro",
+      visitorEmail: "pedro@email.com",
+    });
+    const firstResult = await convertConversationToClient(first.id);
+
+    const second = await makeSeededConversation({
+      visitorName: "Pedro Otra Vez",
+      visitorEmail: "pedro@email.com",
+    });
+    const secondResult = await convertConversationToClient(second.id);
+
+    expect(secondResult.client.id).toBe(firstResult.client.id);
+    expect(secondResult.clientWasCreated).toBe(false);
+  });
+
+  it("email con mayúsculas y espacios distintos se trata como el mismo cliente", async () => {
+    const first = await makeSeededConversation({
+      visitorName: "María",
+      visitorEmail: "maria@email.com",
+    });
+    const firstResult = await convertConversationToClient(first.id);
+
+    const second = await makeSeededConversation({
+      visitorName: "María (otro chat)",
+      visitorEmail: "  Maria@Email.com  ",
+    });
+    const secondResult = await convertConversationToClient(second.id);
+
+    expect(secondResult.client.id).toBe(firstResult.client.id);
+    expect(secondResult.clientWasCreated).toBe(false);
+  });
+});
+
+describe("convertConversationToClient — idempotencia", () => {
+  it("convertir la misma conversación dos veces no crea un segundo cliente", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Sofía",
+      visitorEmail: "sofia@email.com",
+    });
+
+    const first = await convertConversationToClient(conversation.id);
+    const second = await convertConversationToClient(conversation.id);
+
+    expect(second.client.id).toBe(first.client.id);
+    expect(second.clientWasCreated).toBe(false);
+  });
+});
+
+describe("convertConversationToClient — datos incompletos", () => {
+  it("falta el email → error controlado, sin crear ni vincular nada", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Sin Email",
+      visitorEmail: null,
+    });
+
+    await expect(convertConversationToClient(conversation.id)).rejects.toThrow(LeadConversionError);
+
+    const reloaded = await getConversationById(conversation.id);
+    expect(reloaded?.clientId).toBeNull();
+    expect(reloaded?.leadStatus).not.toBe("client");
+  });
+
+  it("falta el email → el código de error es 'missing_email'", async () => {
+    const conversation = await makeSeededConversation({ visitorEmail: null });
+
+    await expect(convertConversationToClient(conversation.id)).rejects.toMatchObject({
+      code: "missing_email",
+    });
+  });
+
+  it("falta el nombre pero existe company → se usa company, marcado como derivado", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: null,
+      visitorEmail: "contacto@tienda.com",
+      company: "Tienda XYZ",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.client.name).toBe("Tienda XYZ");
+    expect(result.nameDerivedFromCompany).toBe(true);
+  });
+
+  it("faltan nombre y company → error controlado", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: null,
+      company: null,
+      visitorEmail: "anonimo@email.com",
+    });
+
+    await expect(convertConversationToClient(conversation.id)).rejects.toMatchObject({
+      code: "missing_name_and_company",
+    });
+  });
+
+  it("conversación inexistente → error controlado", async () => {
+    await expect(convertConversationToClient("00000000-0000-0000-0000-000000000000")).rejects.toMatchObject(
+      { code: "conversation_not_found" }
+    );
+  });
+});
