@@ -31,6 +31,14 @@ export interface Dictionary {
     ctaPrimary: string;
     ctaSecondary: string;
     visualCaption: string;
+    /** Short one-word labels for the HeroVisual "pillars" composition —
+     *  deliberately separate from process.steps so the Hero never changes
+     *  accidentally if that page's copy changes for unrelated reasons. */
+    pillars: {
+      strategy: string;
+      design: string;
+      development: string;
+    };
   };
   trust: {
     heading: string;

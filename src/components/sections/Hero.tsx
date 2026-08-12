@@ -1,3 +1,4 @@
+import { Compass, PenTool, Code2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
@@ -48,7 +49,7 @@ export function Hero({ dict, locale }: HeroProps) {
           </div>
 
           <Reveal delay={0.1} offset={24}>
-            <HeroVisual />
+            <HeroVisual pillars={dict.hero.pillars} />
           </Reveal>
         </div>
       </Container>
@@ -56,7 +57,24 @@ export function Hero({ dict, locale }: HeroProps) {
   );
 }
 
-function HeroVisual() {
+/**
+ * "System of pillars" — Strategy → Design → Development as one connected
+ * system, not three independent cards. Deliberately graphic-first: one
+ * icon + one short word per pillar, joined by a thin gradient line — no
+ * numbers, no chart shapes, no fabricated metrics (this app never invents
+ * stats, see ai/knowledge.ts HARD RULES; the same principle applies here).
+ */
+function HeroVisual({
+  pillars,
+}: {
+  pillars: Dictionary["hero"]["pillars"];
+}) {
+  const steps = [
+    { label: pillars.strategy, Icon: Compass },
+    { label: pillars.design, Icon: PenTool },
+    { label: pillars.development, Icon: Code2 },
+  ];
+
   return (
     <div className="relative mx-auto aspect-[4/5] w-full max-w-md sm:max-w-lg">
       <div
@@ -64,32 +82,31 @@ function HeroVisual() {
         style={{ transform: "rotate(-2deg)" }}
       />
       <div
-        className="absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-border-accent bg-bg-elevated shadow-glow-md"
+        className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border border-border-accent bg-bg-elevated shadow-glow-md"
         style={{ transform: "rotate(1.5deg)" }}
       >
-        {/* chrome */}
-        <div className="flex items-center gap-1.5 border-b border-border px-4 py-3">
-          <span className="size-2 rounded-full bg-fg-subtle/40" />
-          <span className="size-2 rounded-full bg-fg-subtle/40" />
-          <span className="size-2 rounded-full bg-fg-subtle/40" />
-        </div>
+        <div className="flex flex-col items-center">
+          {steps.map((step, i) => (
+            <div key={step.label} className="flex flex-col items-center">
+              <div className="flex size-14 items-center justify-center rounded-full border border-border-accent bg-bg-overlay shadow-glow-sm sm:size-16">
+                <step.Icon
+                  className="size-6 text-accent-300 sm:size-7"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
+              </div>
+              <span className="mt-3 font-mono text-xs uppercase tracking-[0.14em] text-fg-muted">
+                {step.label}
+              </span>
 
-        {/* skeleton content */}
-        <div className="flex flex-1 flex-col gap-4 p-5">
-          <div className="h-3 w-2/5 rounded-full bg-fg-subtle/25" />
-          <div className="h-6 w-4/5 rounded-full bg-gradient-to-r from-accent-400 to-accent-600" />
-          <div className="h-3 w-3/5 rounded-full bg-fg-subtle/20" />
-
-          <div className="mt-2 grid flex-1 grid-cols-2 gap-3">
-            <div className="rounded-lg border border-border bg-bg-overlay/60" />
-            <div className="rounded-lg border border-border-accent bg-gradient-to-br from-accent-600/40 to-transparent" />
-            <div className="col-span-2 rounded-lg border border-border bg-bg-overlay/60" />
-          </div>
-
-          <div className="mt-auto flex items-center justify-between">
-            <div className="h-8 w-24 rounded-pill bg-accent-500/90" />
-            <div className="h-3 w-16 rounded-full bg-fg-subtle/20" />
-          </div>
+              {i < steps.length - 1 && (
+                <div
+                  className="my-4 h-10 w-px bg-gradient-to-b from-accent-500/70 to-accent-500/10 sm:h-12"
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

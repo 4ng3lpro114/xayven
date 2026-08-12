@@ -30,6 +30,11 @@ export const es: Dictionary = {
     ctaPrimary: "Crear mi proyecto",
     ctaSecondary: "Ver nuestro trabajo",
     visualCaption: "Estrategia, diseño y desarrollo bajo un mismo equipo.",
+    pillars: {
+      strategy: "Estrategia",
+      design: "Diseño",
+      development: "Desarrollo",
+    },
   },
   trust: {
     heading: "Cómo trabajamos, en corto",
