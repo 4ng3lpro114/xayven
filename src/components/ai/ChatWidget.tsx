@@ -55,12 +55,16 @@ export function ChatWidget({
   }, []);
 
   useEffect(() => {
-    sessionIdRef.current = getOrCreateSessionId();
+    // Re-runs on locale change (e.g. switching /es <-> /en client-side,
+    // without a full page reload) so the session id — and therefore the
+    // conversation it groups turns into — is always the one scoped to the
+    // language currently being viewed. See clientSession.ts.
+    sessionIdRef.current = getOrCreateSessionId(locale);
     fetch("/api/ai/chat")
       .then((res) => (res.ok ? res.json() : { configured: false }))
       .then((data: { configured?: boolean }) => setConfigured(data.configured ? "yes" : "no"))
       .catch(() => setConfigured("no"));
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (!open) return;
@@ -123,7 +127,7 @@ export function ChatWidget({
   function restart() {
     setMessages([{ role: "assistant", content: dict.greeting }]);
     setTurnError(null);
-    sessionIdRef.current = getOrCreateSessionId();
+    sessionIdRef.current = getOrCreateSessionId(locale);
   }
 
   const showSuggestions = messages.length <= 1 && !loading;
