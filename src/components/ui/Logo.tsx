@@ -4,6 +4,10 @@ interface LogoProps {
   className?: string;
   /** Renders the symbol mark only (used in tight spaces / loading states). */
   markOnly?: boolean;
+  /** Pixel size of the SVG mark itself. Defaults to 22 — the size used by
+   *  every existing call site today (ChatWidget, etc.) — so nothing that
+   *  omits this prop changes appearance. */
+  size?: number;
 }
 
 /**
@@ -11,12 +15,12 @@ interface LogoProps {
  * geometric "X" symbol that can stand on its own once the brand grows a
  * dedicated icon system (see also app/icon.tsx for the favicon version).
  */
-export function Logo({ className, markOnly = false }: LogoProps) {
+export function Logo({ className, markOnly = false, size = 22 }: LogoProps) {
   return (
     <span className={cn("inline-flex items-center gap-2.5 select-none", className)}>
       <svg
-        width="22"
-        height="22"
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"
