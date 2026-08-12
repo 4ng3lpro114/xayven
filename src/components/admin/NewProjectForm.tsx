@@ -8,7 +8,28 @@ import { Button } from "@/components/ui/Button";
 const inputClasses =
   "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none";
 
-export function NewProjectForm() {
+export interface PreselectedClient {
+  id: string;
+  name: string;
+  email: string;
+  /** Only ever sourced from a linked conversation's `company` — `clients`
+   *  itself has no such column (see Fase 5A audit). Null when unknown. */
+  company: string | null;
+}
+
+/**
+ * Fase 6: when `preselectedClient` is passed (the client already exists —
+ * reached via /admin/projects/new?clientId=..., see the page component),
+ * the client fields are replaced by a read-only summary and `clientId` is
+ * sent instead of clientName/clientEmail/clientPhone. Without it, this is
+ * the exact same form/flow as before — nothing about the original
+ * behavior changed.
+ */
+export function NewProjectForm({
+  preselectedClient = null,
+}: {
+  preselectedClient?: PreselectedClient | null;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,14 +40,21 @@ export function NewProjectForm() {
     setError(null);
 
     const data = new FormData(e.currentTarget);
-    const payload = {
-      clientName: String(data.get("clientName") ?? ""),
-      clientEmail: String(data.get("clientEmail") ?? ""),
-      clientPhone: String(data.get("clientPhone") ?? ""),
-      projectName: String(data.get("projectName") ?? ""),
-      totalAmount: Number(data.get("totalAmount")),
-      currency: String(data.get("currency") ?? "COP"),
-    };
+    const payload = preselectedClient
+      ? {
+          clientId: preselectedClient.id,
+          projectName: String(data.get("projectName") ?? ""),
+          totalAmount: Number(data.get("totalAmount")),
+          currency: String(data.get("currency") ?? "COP"),
+        }
+      : {
+          clientName: String(data.get("clientName") ?? ""),
+          clientEmail: String(data.get("clientEmail") ?? ""),
+          clientPhone: String(data.get("clientPhone") ?? ""),
+          projectName: String(data.get("projectName") ?? ""),
+          totalAmount: Number(data.get("totalAmount")),
+          currency: String(data.get("currency") ?? "COP"),
+        };
 
     try {
       const res = await fetch("/api/admin/projects", {
@@ -51,18 +79,33 @@ export function NewProjectForm() {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Nombre del cliente" htmlFor="clientName">
-          <input id="clientName" name="clientName" type="text" required className={inputClasses} />
-        </Field>
-        <Field label="Email del cliente" htmlFor="clientEmail">
-          <input id="clientEmail" name="clientEmail" type="email" required className={inputClasses} />
-        </Field>
-      </div>
+      {preselectedClient ? (
+        <div className="rounded-lg border border-border-accent bg-bg-raised p-4">
+          <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
+            Proyecto para
+          </p>
+          <p className="mt-1 text-sm font-medium text-fg">{preselectedClient.name}</p>
+          {preselectedClient.company && (
+            <p className="text-sm text-fg-muted">{preselectedClient.company}</p>
+          )}
+          <p className="text-sm text-fg-muted">{preselectedClient.email}</p>
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Nombre del cliente" htmlFor="clientName">
+            <input id="clientName" name="clientName" type="text" required className={inputClasses} />
+          </Field>
+          <Field label="Email del cliente" htmlFor="clientEmail">
+            <input id="clientEmail" name="clientEmail" type="email" required className={inputClasses} />
+          </Field>
+        </div>
+      )}
 
-      <Field label="Teléfono / WhatsApp (opcional)" htmlFor="clientPhone">
-        <input id="clientPhone" name="clientPhone" type="text" className={inputClasses} />
-      </Field>
+      {!preselectedClient && (
+        <Field label="Teléfono / WhatsApp (opcional)" htmlFor="clientPhone">
+          <input id="clientPhone" name="clientPhone" type="text" className={inputClasses} />
+        </Field>
+      )}
 
       <Field label="Nombre del proyecto" htmlFor="projectName">
         <input id="projectName" name="projectName" type="text" required className={inputClasses} />

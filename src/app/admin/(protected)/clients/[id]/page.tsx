@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
 import { buildClientSummaries } from "@/lib/clients/summary";
@@ -181,7 +181,16 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
         </table>
       </div>
 
-      <h2 className="mt-10 text-base font-semibold text-fg">Proyectos</h2>
+      <div className="mt-10 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-fg">Proyectos</h2>
+        <Link
+          href={`/admin/projects/new?clientId=${client.id}`}
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-400"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          Crear proyecto
+        </Link>
+      </div>
       <div className="mt-4 overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead>
