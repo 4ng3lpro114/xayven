@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
@@ -16,6 +17,13 @@ interface LogoProps {
  * dedicated icon system (see also app/icon.tsx for the favicon version).
  */
 export function Logo({ className, markOnly = false, size = 22 }: LogoProps) {
+  // Unique per instance — without this, two <Logo> instances rendered on
+  // the same page (e.g. the ChatWidget toggle button + this component used
+  // elsewhere) would both define a gradient with the same hardcoded id,
+  // which is invalid SVG/HTML and can make the fill fail to resolve for
+  // one of them, leaving the rect (and therefore the whole mark) unpainted.
+  const gradientId = `xayven-mark-gradient-${useId()}`;
+
   return (
     <span className={cn("inline-flex items-center gap-2.5 select-none", className)}>
       <svg
@@ -26,7 +34,7 @@ export function Logo({ className, markOnly = false, size = 22 }: LogoProps) {
         aria-hidden="true"
         className="shrink-0"
       >
-        <rect width="24" height="24" rx="6" fill="url(#xayven-mark-gradient)" />
+        <rect width="24" height="24" rx="6" fill={`url(#${gradientId})`} />
         <path
           d="M6.5 6.5L17.5 17.5M17.5 6.5L6.5 17.5"
           stroke="#07060A"
@@ -34,7 +42,7 @@ export function Logo({ className, markOnly = false, size = 22 }: LogoProps) {
           strokeLinecap="round"
         />
         <defs>
-          <linearGradient id="xayven-mark-gradient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
             <stop stopColor="#C9A8FF" />
             <stop offset="1" stopColor="#7C34F2" />
           </linearGradient>
