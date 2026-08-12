@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
+import { buildClientSummaries } from "@/lib/clients/summary";
+import { buildActivityFeed } from "@/lib/clients/activity";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
+import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
+import { ClientActions } from "@/components/admin/ClientActions";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { formatMoney } from "@/lib/payments/format";
 import { pendingAmount } from "@/lib/payments/types";
@@ -18,6 +22,13 @@ const PAYMENT_STATUS_LABELS_ES: Record<PaymentStatus, string> = {
   REFUNDED: "Reembolsado",
 };
 
+// Same reasoning as /admin/clients/page.tsx — a single client's own
+// conversations/payments will never realistically approach these limits,
+// but the default (50/100) is still raised explicitly rather than assumed
+// sufficient, per Fase 5C Etapa 12.
+const RELATIONS_LIMIT = 5000;
+const ACTIVITY_FEED_LIMIT = 20;
+
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -30,10 +41,27 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
   if (!client) notFound();
 
   const [conversations, projects, payments] = await Promise.all([
-    listConversations({ clientId: client.id, limit: 100 }),
+    listConversations({ clientId: client.id, limit: RELATIONS_LIMIT }),
     listProjects({ clientId: client.id }),
-    listPayments({ clientId: client.id }),
+    listPayments({ clientId: client.id, limit: RELATIONS_LIMIT }),
   ]);
+
+  const summary = buildClientSummaries({
+    clients: [client],
+    conversations,
+    projects,
+    payments,
+  }).get(client.id)!;
+
+  const activityFeed = buildActivityFeed({ conversations, projects, payments }).slice(
+    0,
+    ACTIVITY_FEED_LIMIT
+  );
+
+  // "Empresa" only ever comes from a linked conversation's `company` — it
+  // is NOT a column on `clients` (see Fase 5A audit). Shown only if at
+  // least one linked conversation actually has it; never invented.
+  const company = conversations.find((c) => c.company)?.company ?? null;
 
   return (
     <div>
@@ -45,32 +73,70 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
         Volver
       </Link>
 
-      <div className="mt-4">
-        <h1 className="text-2xl font-semibold text-fg">{client.name}</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          {client.email}
-          {client.phone && ` · ${client.phone}`} · Cliente desde{" "}
-          {new Date(client.createdAt).toLocaleDateString("es-CO")}
-        </p>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-fg">{client.name}</h1>
+          {company && <p className="mt-1 text-sm text-fg-muted">{company}</p>}
+          <p className="mt-1 text-sm text-fg-muted">
+            {client.email}
+            {client.phone && ` · ${client.phone}`} · Cliente desde{" "}
+            {new Date(client.createdAt).toLocaleDateString("es-CO")}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {summary.leadStatus && <LeadStatusBadge status={summary.leadStatus} />}
+            <ClientImportanceBadge importance={summary.importance} />
+          </div>
+        </div>
+        <ClientActions clientId={client.id} importance={summary.importance} />
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-bg-raised p-4">
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
             Conversaciones
           </p>
-          <p className="mt-1 text-lg font-semibold text-fg">{conversations.length}</p>
+          <p className="mt-1 text-lg font-semibold text-fg">{summary.conversationsCount}</p>
         </div>
         <div className="rounded-lg border border-border bg-bg-raised p-4">
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
             Proyectos
           </p>
-          <p className="mt-1 text-lg font-semibold text-fg">{projects.length}</p>
+          <p className="mt-1 text-lg font-semibold text-fg">{summary.projectsCount}</p>
         </div>
         <div className="rounded-lg border border-border bg-bg-raised p-4">
           <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">Pagos</p>
           <p className="mt-1 text-lg font-semibold text-fg">{payments.length}</p>
         </div>
+        <div className="rounded-lg border border-border bg-bg-raised p-4">
+          <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
+            Actividad
+          </p>
+          <p className="mt-1 text-lg font-semibold text-fg">
+            {summary.latestActivity
+              ? new Date(summary.latestActivity).toLocaleDateString("es-CO")
+              : "Sin actividad"}
+          </p>
+        </div>
+      </div>
+
+      <h2 className="mt-10 text-base font-semibold text-fg">Actividad reciente</h2>
+      <div className="mt-4 space-y-3">
+        {activityFeed.length === 0 && (
+          <p className="rounded-lg border border-border px-4 py-6 text-center text-sm text-fg-subtle">
+            Sin actividad todavía.
+          </p>
+        )}
+        {activityFeed.map((item) => (
+          <div
+            key={`${item.type}-${item.id}`}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-elevated/40 px-4 py-3"
+          >
+            <p className="text-sm text-fg-muted">{item.label}</p>
+            <p className="whitespace-nowrap text-xs text-fg-subtle">
+              {new Date(item.timestamp).toLocaleDateString("es-CO")}
+            </p>
+          </div>
+        ))}
       </div>
 
       <h2 className="mt-10 text-base font-semibold text-fg">Conversaciones</h2>
@@ -189,6 +255,13 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="mt-10 text-base font-semibold text-fg">Mantenimiento</h2>
+      <div className="mt-4">
+        <p className="rounded-lg border border-border px-4 py-6 text-center text-sm text-fg-subtle">
+          Mantenimiento no vinculado.
+        </p>
       </div>
     </div>
   );

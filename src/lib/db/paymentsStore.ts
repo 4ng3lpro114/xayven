@@ -114,6 +114,36 @@ export async function listClients(): Promise<Client[]> {
 }
 
 /**
+ * Real, permanent deletion (Fase 5C, Etapa 10) — same discipline as
+ * deleteConversation() in conversationStore.ts: never falls back to
+ * memory on a Supabase error, since a fabricated success would be
+ * dangerous here. The actual protection decision (is this client safe to
+ * delete at all) is NOT this function's job — it lives in
+ * classifyClientImportance() and is enforced by the caller (see
+ * DELETE /api/admin/clients/[id]/route.ts) BEFORE this is ever invoked.
+ * `projects.client_id`/`payments.client_id` are also `ON DELETE
+ * RESTRICT` at the database level (see 0002_payments.sql) — a second,
+ * independent safety net if the application-level check were ever wrong.
+ */
+export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return { deleted: clientsMemory.delete(id) };
+  }
+
+  const { error, count } = await supabase.from("clients").delete({ count: "exact" }).eq("id", id);
+
+  if (error) {
+    throw new Error(
+      `[clients] deleteClient failed: ${error.code ?? "unknown"} ${error.message ?? ""}`
+    );
+  }
+
+  return { deleted: (count ?? 0) > 0 };
+}
+
+/**
  * Case/whitespace-insensitive client lookup by email — backs the lead →
  * client conversion flow's find-before-create step (see
  * src/lib/leads/conversion.ts). `normalizedEmail` must already be
