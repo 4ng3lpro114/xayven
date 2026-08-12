@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, FolderPlus, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, FolderPlus, Loader2, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type ConvertClientErrorCode =
   | "missing_email"
@@ -69,6 +71,46 @@ const ERROR_MESSAGES: Record<ConvertClientErrorCode, string> = {
   generic: "No pudimos completar la conversión. Intenta de nuevo.",
 };
 
+export type DeleteConversationErrorCode = "has_linked_client" | "not_found" | "unauthorized" | "generic";
+
+export type DeleteConversationOutcome = { status: "success" } | { status: "error"; code: DeleteConversationErrorCode };
+
+/**
+ * Mirrors requestConvertToClient's shape/reasoning exactly — a
+ * dependency-injectable, unit-testable function separate from the click
+ * handler, never surfacing raw response text to the caller.
+ */
+export async function requestDeleteConversation(
+  conversationId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<DeleteConversationOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`/api/admin/conversations/${conversationId}`, { method: "DELETE" });
+  } catch {
+    return { status: "error", code: "generic" };
+  }
+
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+
+  if (res.ok && body.ok) {
+    return { status: "success" };
+  }
+
+  if (res.status === 401) return { status: "error", code: "unauthorized" };
+  if (res.status === 409) return { status: "error", code: "has_linked_client" };
+  if (res.status === 404) return { status: "error", code: "not_found" };
+
+  return { status: "error", code: "generic" };
+}
+
+const DELETE_ERROR_MESSAGES: Record<DeleteConversationErrorCode, string> = {
+  has_linked_client: "Este lead ya es cliente — no se puede eliminar.",
+  not_found: "Esta conversación ya no existe.",
+  unauthorized: "Tu sesión expiró — recarga la página e inicia sesión de nuevo.",
+  generic: "No pudimos eliminar la conversación. Intenta de nuevo.",
+};
+
 export function ConversationActions({
   conversationId,
   clientId,
@@ -76,11 +118,16 @@ export function ConversationActions({
   conversationId: string;
   clientId: string | null;
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [linkedClientId, setLinkedClientId] = useState(clientId);
   const [confirmation, setConfirmation] = useState<"created" | "existing" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectNote, setProjectNote] = useState(false);
+
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleConvert() {
     if (loading) return; // ignore a second click while a request is already in flight
@@ -98,6 +145,30 @@ export function ConversationActions({
     }
 
     setLoading(false);
+  }
+
+  async function handleDeleteClick() {
+    if (deleting) return;
+    if (!deleteArmed) {
+      // First click only arms the confirmation — nothing is deleted yet.
+      setDeleteArmed(true);
+      setDeleteError(null);
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    const outcome = await requestDeleteConversation(conversationId);
+
+    if (outcome.status === "success") {
+      router.push("/admin");
+      return;
+    }
+
+    setDeleteError(DELETE_ERROR_MESSAGES[outcome.code]);
+    setDeleteArmed(false);
+    setDeleting(false);
   }
 
   return (
@@ -129,6 +200,39 @@ export function ConversationActions({
         </p>
       )}
       {error && <p className="w-full text-xs text-error">{error}</p>}
+
+      {linkedClientId === null && (
+        <>
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            disabled={deleting}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors disabled:cursor-default disabled:opacity-50",
+              deleteArmed
+                ? "border-error/40 bg-error/10 text-error hover:bg-error/20"
+                : "border-border-strong bg-bg-raised text-fg-muted hover:border-border-accent hover:text-fg"
+            )}
+          >
+            {deleting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="size-4" aria-hidden="true" />
+            )}
+            {deleteArmed ? "¿Seguro? Confirmar borrado" : "Eliminar conversación"}
+          </button>
+          {deleteArmed && !deleting && (
+            <button
+              type="button"
+              onClick={() => setDeleteArmed(false)}
+              className="text-xs text-fg-subtle underline transition-colors hover:text-fg-muted"
+            >
+              Cancelar
+            </button>
+          )}
+        </>
+      )}
+      {deleteError && <p className="w-full text-xs text-error">{deleteError}</p>}
 
       <button
         type="button"

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { requestConvertToClient } from "../ConversationActions";
+import { requestConvertToClient, requestDeleteConversation } from "../ConversationActions";
 
 /**
  * Tests the request/response-interpretation logic in isolation from
@@ -128,6 +128,76 @@ describe("requestConvertToClient", () => {
     );
 
     const outcome = await requestConvertToClient("conv-9");
+
+    expect(outcome).toEqual({ status: "error", code: "generic" });
+  });
+});
+
+describe("requestDeleteConversation", () => {
+  it("éxito → status success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: true }))
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-1");
+
+    expect(outcome).toEqual({ status: "success" });
+  });
+
+  it("409 con cliente vinculado → code has_linked_client", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "has_linked_client" }, 409))
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-2");
+
+    expect(outcome).toEqual({ status: "error", code: "has_linked_client" });
+  });
+
+  it("404 conversación inexistente → code not_found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "not_found" }, 404))
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-3");
+
+    expect(outcome).toEqual({ status: "error", code: "not_found" });
+  });
+
+  it("401 no autorizado → code unauthorized", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "unauthorized" }, 401))
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-4");
+
+    expect(outcome).toEqual({ status: "error", code: "unauthorized" });
+  });
+
+  it("error inesperado (500) → code generic", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "delete_failed" }, 500))
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-5");
+
+    expect(outcome).toEqual({ status: "error", code: "generic" });
+  });
+
+  it("fallo de red → code generic, nunca se propaga la excepción", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      })
+    );
+
+    const outcome = await requestDeleteConversation("conv-del-6");
 
     expect(outcome).toEqual({ status: "error", code: "generic" });
   });

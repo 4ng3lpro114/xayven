@@ -280,3 +280,34 @@ export async function countByLeadStatus(): Promise<ConversationCounts> {
 export function isConversationStorePersistent(): boolean {
   return isDatabaseConfigured();
 }
+
+/**
+ * Real, permanent deletion — the first of its kind in this codebase (every
+ * other store in the app only ever creates/updates, by design). Never
+ * falls back to memory on a Supabase error the way the other functions in
+ * this module do: silently "succeeding" a delete that didn't actually
+ * happen against the real row would be actively dangerous, not a
+ * resilience win. Callers (see the DELETE route) are responsible for the
+ * "never delete a conversation linked to a client" business rule — this
+ * function only knows how to delete-by-id, unconditionally.
+ */
+export async function deleteConversation(id: string): Promise<{ deleted: boolean }> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return { deleted: memoryStore.delete(id) };
+  }
+
+  const { error, count } = await supabase
+    .from("conversations")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(
+      `[conversations] deleteConversation failed: ${error.code ?? "unknown"} ${error.message ?? ""}`
+    );
+  }
+
+  return { deleted: (count ?? 0) > 0 };
+}

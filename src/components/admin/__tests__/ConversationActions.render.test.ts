@@ -1,6 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+
+/**
+ * useRouter() (used for the post-delete redirect to /admin) throws
+ * "invariant expected app router to be mounted" outside a real Next.js App
+ * Router tree, which a bare renderToString() call never provides — mocked
+ * here the same way @/lib/auth/admin is mocked in the API route tests, no
+ * new dependency needed.
+ */
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { ConversationActions } from "../ConversationActions";
 
 /**
@@ -13,8 +25,8 @@ import { ConversationActions } from "../ConversationActions";
  * ("src/**\/__tests__/**\/*.test.ts") without changing it.
  *
  * Interaction-based behavior (clicking the button, loading state, the
- * double-click guard) is NOT — and cannot be — covered here; see the note
- * in ConversationActions.test.ts.
+ * double-click guard, the two-step delete confirmation) is NOT — and
+ * cannot be — covered here; see the note in ConversationActions.test.ts.
  */
 describe("ConversationActions — conditional rendering", () => {
   it("sin clientId → muestra el botón 'Convertir en cliente'", () => {
@@ -45,5 +57,21 @@ describe("ConversationActions — conditional rendering", () => {
 
     expect(withoutClient).toContain("Convertir en proyecto");
     expect(withClient).toContain("Convertir en proyecto");
+  });
+
+  it("sin clientId → muestra 'Eliminar conversación'", () => {
+    const html = renderToString(
+      createElement(ConversationActions, { conversationId: "conv-5", clientId: null })
+    );
+
+    expect(html).toContain("Eliminar conversación");
+  });
+
+  it("con clientId ya existente → NO muestra 'Eliminar conversación' (regla también reforzada en el backend)", () => {
+    const html = renderToString(
+      createElement(ConversationActions, { conversationId: "conv-6", clientId: "client-789" })
+    );
+
+    expect(html).not.toContain("Eliminar conversación");
   });
 });
