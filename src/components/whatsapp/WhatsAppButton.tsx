@@ -39,7 +39,7 @@ export function WhatsAppButton({
         className
       )}
       style={{
-        background: "#25D366",
+        background: "var(--color-accent-500)",
         bottom: "calc(6.25rem + env(safe-area-inset-bottom, 0px))",
       }}
     >
