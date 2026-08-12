@@ -227,6 +227,7 @@ export function applyExtractedFields(
 export async function listConversations(options?: {
   limit?: number;
   leadStatus?: LeadStatus;
+  clientId?: string;
 }): Promise<Conversation[]> {
   const supabase = getSupabaseAdmin();
   const limit = options?.limit ?? 50;
@@ -234,6 +235,7 @@ export async function listConversations(options?: {
   if (!supabase) {
     return [...memoryStore.values()]
       .filter((c) => !options?.leadStatus || c.leadStatus === options.leadStatus)
+      .filter((c) => !options?.clientId || c.clientId === options.clientId)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, limit);
   }
@@ -246,6 +248,9 @@ export async function listConversations(options?: {
 
   if (options?.leadStatus) {
     query = query.eq("lead_status", options.leadStatus);
+  }
+  if (options?.clientId) {
+    query = query.eq("client_id", options.clientId);
   }
 
   const { data } = await query;

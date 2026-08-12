@@ -299,13 +299,18 @@ export async function getProjectByPortalToken(token: string): Promise<Project | 
   return data ? rowToProject(data as ProjectRow) : null;
 }
 
-export async function listProjects(): Promise<Project[]> {
+export async function listProjects(filters?: { clientId?: string }): Promise<Project[]> {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    return [...projectsMemory.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...projectsMemory.values()]
+      .filter((p) => !filters?.clientId || p.clientId === filters.clientId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+  let query = supabase.from("projects").select("*").order("created_at", { ascending: false });
+  if (filters?.clientId) query = query.eq("client_id", filters.clientId);
+
+  const { data } = await query;
   return (data ?? []).map((row) => rowToProject(row as ProjectRow));
 }
 
@@ -555,6 +560,7 @@ export async function updatePayment(
 export async function listPayments(filters?: {
   status?: PaymentStatus;
   projectId?: string;
+  clientId?: string;
   limit?: number;
 }): Promise<Payment[]> {
   const supabase = getSupabaseAdmin();
@@ -564,6 +570,7 @@ export async function listPayments(filters?: {
     return [...paymentsMemory.values()]
       .filter((p) => !filters?.status || p.status === filters.status)
       .filter((p) => !filters?.projectId || p.projectId === filters.projectId)
+      .filter((p) => !filters?.clientId || p.clientId === filters.clientId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit);
   }
@@ -576,6 +583,7 @@ export async function listPayments(filters?: {
 
   if (filters?.status) query = query.eq("status", filters.status);
   if (filters?.projectId) query = query.eq("project_id", filters.projectId);
+  if (filters?.clientId) query = query.eq("client_id", filters.clientId);
 
   const { data } = await query;
   return (data ?? []).map((row) => rowToPayment(row as PaymentRow));

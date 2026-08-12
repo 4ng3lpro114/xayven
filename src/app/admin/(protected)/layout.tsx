@@ -33,6 +33,9 @@ export default async function ProtectedAdminLayout({
               <Link href="/admin" className="transition-colors hover:text-fg">
                 Conversaciones
               </Link>
+              <Link href="/admin/clients" className="transition-colors hover:text-fg">
+                Clientes
+              </Link>
               <Link href="/admin/projects" className="transition-colors hover:text-fg">
                 Proyectos
               </Link>
