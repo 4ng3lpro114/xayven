@@ -1,5 +1,5 @@
 import type { LeadStatus } from "@/lib/db/types";
-import type { Project, ProjectStatus } from "@/lib/payments/types";
+import type { Project } from "@/lib/payments/types";
 
 /**
  * Client importance classification (Fase 5C, Etapa 2) — a single,
@@ -8,32 +8,9 @@ import type { Project, ProjectStatus } from "@/lib/payments/types";
  * the UI (which badge/confirmation copy to show) and, authoritatively, by
  * the DELETE /api/admin/clients/[id] route (which recomputes this from
  * live data — never trusts what the UI last rendered).
- *
- * Values match exactly the real `projects.status` enum from
- * supabase/migrations/0002_payments.sql — nothing invented:
- *   'lead' | 'proposal' | 'awaiting_payment' | 'active' | 'in_progress' |
- *   'review' | 'completed' | 'maintenance' | 'cancelled'
  */
 
 export type ClientImportance = "normal" | "important" | "protected";
-
-/** A project in one of these states represents real, ongoing committed
- *  work — the same condition that already makes `payments.client_id` and
- *  `projects.client_id` FKs `ON DELETE RESTRICT` at the database level
- *  (see supabase/migrations/0002_payments.sql). "completed"/"cancelled"
- *  are deliberately excluded — a finished or dropped project's money (if
- *  any) is already covered by the `hasPayments`/`paidAmount > 0` checks
- *  below, so it doesn't need to be listed here too. */
-export const PROTECTED_PROJECT_STATUSES: ProjectStatus[] = [
-  "active",
-  "in_progress",
-  "review",
-  "maintenance",
-];
-
-/** A project in one of these states is a live negotiation — real
- *  commercial intent, but no money has moved yet. */
-export const NEGOTIATION_PROJECT_STATUSES: ProjectStatus[] = ["proposal", "awaiting_payment"];
 
 /** Centralized threshold — change this one line to adjust what counts as
  *  a "high" lead score for the "important" tier. */
@@ -45,31 +22,77 @@ export interface ClassifyClientImportanceInput {
    *  criterion) — null if the client has no conversations at all. */
   leadScore: number | null;
   leadStatus: LeadStatus | null;
-  /** Only `status` and `paidAmount` are actually read — callers (e.g. the
-   *  delete route) can pass a minimal projection instead of full Project
-   *  rows. */
+  /** Only the array's length is actually read (see the "auditoría de
+   *  eliminación de proyectos" fix below) — callers can pass a minimal
+   *  projection instead of full Project rows. `status`/`paidAmount` are
+   *  kept in the type only because every existing caller already has
+   *  them on hand. */
   projects: Pick<Project, "status" | "paidAmount">[];
   hasPayments: boolean;
 }
 
+/** Why a client is "protected" — specific enough for the UI to show a
+ *  distinct message per reason (see ClientActions.tsx). `has_payments` is
+ *  the stronger reason and wins when both apply. */
+export type ClientProtectionReason = "has_payments" | "has_related_projects";
+
 /**
- * Pure, no I/O. Order of evaluation matters: PROTECTED is checked first
- * and, once true, short-circuits — a client can never be "important" once
- * they're "protected", the stronger classification always wins.
+ * Single source of truth for BOTH "is this client protected" and "why".
+ * Pure, no I/O.
+ *
+ * Fase 5C-fix (auditoría de eliminación de proyectos, ago-2026): CUALQUIER
+ * proyecto asociado protege al cliente, sin importar su `status`. Antes,
+ * la protección solo dependía del status (active/in_progress/review/
+ * maintenance) o de un pago real, dejando pasar clientes con un proyecto
+ * en negociación (p. ej. "awaiting_payment", sin pagos) hasta un intento
+ * de DELETE real — que Postgres terminaba rechazando de todas formas,
+ * porque `projects.client_id -> clients.id` es `ON DELETE RESTRICT` SIN
+ * excepción por status (no existe soft-delete de proyectos). El resultado
+ * era un error 500 genérico en vez de un 409 explicando la causa real.
+ *
+ * Fase 5C-fix-2 (revisión puntual): esta razón se calculaba ANTES por
+ * duplicado — una vez aquí (implícitamente, dentro de
+ * classifyClientImportance) y otra vez en route.ts (`hasPayments ||
+ * hasPaidProject`) para decidir qué código de error devolver. Esa
+ * duplicación podía divergir si esta función cambiara sin actualizar
+ * route.ts en paralelo. Ahora es una sola función: classifyClientImportance
+ * y el endpoint la usan a través de esta misma fuente de verdad.
+ *
+ * Devuelve `null` si el cliente NO está protegido — hoy eso es exhaustivo
+ * (solo hay dos causas posibles de protección), así que un `null` aquí
+ * implica que classifyClientImportance() nunca devolverá "protected" para
+ * este mismo input.
+ */
+export function getClientProtectionReason(
+  input: ClassifyClientImportanceInput
+): ClientProtectionReason | null {
+  const hasPaidProject = input.projects.some((p) => p.paidAmount > 0);
+  if (input.hasPayments || hasPaidProject) {
+    return "has_payments";
+  }
+  if (input.projects.length > 0) {
+    return "has_related_projects";
+  }
+  return null;
+}
+
+/**
+ * Order of evaluation matters: PROTECTED is checked first and, once true,
+ * short-circuits — a client can never be "important" once they're
+ * "protected", the stronger classification always wins. `hasPayments` is
+ * kept as an independent check inside getClientProtectionReason() (defensa
+ * en profundidad), aunque en la práctica un pago siempre implica que
+ * existe un proyecto asociado.
  */
 export function classifyClientImportance(input: ClassifyClientImportanceInput): ClientImportance {
-  const hasPaidProject = input.projects.some((p) => p.paidAmount > 0);
-  const hasProtectedProject = input.projects.some((p) => PROTECTED_PROJECT_STATUSES.includes(p.status));
-
-  if (input.hasPayments || hasPaidProject || hasProtectedProject) {
+  if (getClientProtectionReason(input) !== null) {
     return "protected";
   }
 
   const hasHighScore = (input.leadScore ?? 0) >= IMPORTANT_LEAD_SCORE_THRESHOLD;
   const isHot = input.leadStatus === "hot";
-  const hasNegotiationProject = input.projects.some((p) => NEGOTIATION_PROJECT_STATUSES.includes(p.status));
 
-  if (hasHighScore || isHot || hasNegotiationProject) {
+  if (hasHighScore || isHot) {
     return "important";
   }
 

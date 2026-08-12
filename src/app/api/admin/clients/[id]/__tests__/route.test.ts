@@ -78,7 +78,7 @@ describe("DELETE /api/admin/clients/[id]", () => {
     expect(await getClientById(client.id)).toBeNull();
   });
 
-  it("cliente con un pago registrado → 409 protected, NO se borra", async () => {
+  it("cliente con un pago registrado (fila real en `payments`) → 409 has_payments, NO se borra", async () => {
     requireAdminSessionMock.mockResolvedValue(true);
     const client = await makeClient();
     const project = await createProject({ clientId: client.id, name: "Proyecto", totalAmount: 1000 });
@@ -97,11 +97,25 @@ describe("DELETE /api/admin/clients/[id]", () => {
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.ok).toBe(false);
-    expect(body.error).toBe("protected");
+    expect(body.error).toBe("has_payments");
     expect(await getClientById(client.id)).not.toBeNull();
   });
 
-  it("cliente con un proyecto comercialmente activo (status='active'), sin pagos en `payments` → 409 protected, NO se borra", async () => {
+  it("cliente con proyecto de paid_amount > 0 pero SIN fila en `payments` → 409 has_payments igual (paidAmount cuenta como pago)", async () => {
+    requireAdminSessionMock.mockResolvedValue(true);
+    const client = await makeClient();
+    const project = await createProject({ clientId: client.id, name: "Proyecto pagado", totalAmount: 1000 });
+    await setProjectPaidAmount(project.id, 500, "active");
+
+    const res = await DELETE(makeRequest(), makeContext(client.id));
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("has_payments");
+    expect(await getClientById(client.id)).not.toBeNull();
+  });
+
+  it("cliente con un proyecto comercialmente activo (status='active'), sin pagos → 409 has_related_projects, NO se borra", async () => {
     requireAdminSessionMock.mockResolvedValue(true);
     const client = await makeClient();
     const project = await createProject({ clientId: client.id, name: "Proyecto activo", totalAmount: 1000 });
@@ -111,18 +125,32 @@ describe("DELETE /api/admin/clients/[id]", () => {
 
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body.error).toBe("protected");
+    expect(body.error).toBe("has_related_projects");
     expect(await getClientById(client.id)).not.toBeNull();
   });
 
-  it("cliente con proyecto en negociación (awaiting_payment, el default de createProject) SIN pagos → 200, sí se puede borrar (es 'important', no 'protected')", async () => {
+  /**
+   * Fase 5C-fix (auditoría de eliminación de proyectos): este es el caso
+   * exacto que falló en producción con Angel Rojas/PRUEBA XAYVEN — un
+   * proyecto en negociación (awaiting_payment, el default de
+   * createProject), sin ninguna fila en `payments`. Antes de este fix,
+   * classifyClientImportance() devolvía "important" (no "protected") y
+   * dejaba pasar el DELETE real, que Postgres rechazaba con un 500
+   * genérico. Ahora debe bloquearse ANTES de intentar el DELETE, con un
+   * 409 que explica la causa.
+   */
+  it("cliente con proyecto en negociación (awaiting_payment) SIN pagos → 409 has_related_projects, NO se borra (antes era el bug reportado)", async () => {
     requireAdminSessionMock.mockResolvedValue(true);
     const client = await makeClient();
     await createProject({ clientId: client.id, name: "Proyecto en negociación", totalAmount: 1000 });
 
     const res = await DELETE(makeRequest(), makeContext(client.id));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("has_related_projects");
+    expect(await getClientById(client.id)).not.toBeNull();
   });
 
   it("solo exporta DELETE — Next.js rechaza GET/POST/PUT/PATCH automáticamente (405)", () => {

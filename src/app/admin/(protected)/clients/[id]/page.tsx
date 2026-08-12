@@ -5,6 +5,7 @@ import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStor
 import { listConversations } from "@/lib/db/conversationStore";
 import { buildClientSummaries } from "@/lib/clients/summary";
 import { buildActivityFeed } from "@/lib/clients/activity";
+import { getClientProtectionReason } from "@/lib/clients/importance";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
 import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
 import { ClientActions } from "@/components/admin/ClientActions";
@@ -63,6 +64,17 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
   // least one linked conversation actually has it; never invented.
   const company = conversations.find((c) => c.company)?.company ?? null;
 
+  // Misma fuente de verdad que DELETE /api/admin/clients/[id]/route.ts —
+  // getClientProtectionReason() nunca se recalcula en paralelo aquí, así
+  // que esta página no puede mostrar un motivo distinto al que el backend
+  // realmente usaría para bloquear el borrado (Fase 5C-fix-2).
+  const protectedReason = getClientProtectionReason({
+    leadScore: null,
+    leadStatus: null,
+    projects,
+    hasPayments: payments.length > 0,
+  });
+
   return (
     <div>
       <Link
@@ -87,7 +99,11 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
             <ClientImportanceBadge importance={summary.importance} />
           </div>
         </div>
-        <ClientActions clientId={client.id} importance={summary.importance} />
+        <ClientActions
+          clientId={client.id}
+          importance={summary.importance}
+          protectedReason={protectedReason}
+        />
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-4">

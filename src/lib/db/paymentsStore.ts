@@ -114,6 +114,29 @@ export async function listClients(): Promise<Client[]> {
 }
 
 /**
+ * Thrown by deleteClient() specifically when Postgres rejects the DELETE
+ * with a foreign-key violation (`error.code === "23503"`) — distinguished
+ * from any other Supabase failure so the caller (DELETE
+ * /api/admin/clients/[id]/route.ts) can map it to a controlled 409
+ * instead of a generic 500, without ever forwarding the raw Postgres
+ * message to the client. Fase 5C-fix (auditoría de eliminación de
+ * proyectos): this is the safety net for the rare case where the
+ * application-level classifyClientImportance() check said deletion was
+ * safe but a project/payment was created for this client in the tiny
+ * window between that check and this real DELETE (race condition) — the
+ * `ON DELETE RESTRICT` FK is the last line of defense either way.
+ */
+export class ClientDeleteConflictError extends Error {
+  readonly pgCode: string;
+
+  constructor(pgCode: string, message: string) {
+    super(message);
+    this.name = "ClientDeleteConflictError";
+    this.pgCode = pgCode;
+  }
+}
+
+/**
  * Real, permanent deletion (Fase 5C, Etapa 10) — same discipline as
  * deleteConversation() in conversationStore.ts: never falls back to
  * memory on a Supabase error, since a fabricated success would be
@@ -123,7 +146,8 @@ export async function listClients(): Promise<Client[]> {
  * DELETE /api/admin/clients/[id]/route.ts) BEFORE this is ever invoked.
  * `projects.client_id`/`payments.client_id` are also `ON DELETE
  * RESTRICT` at the database level (see 0002_payments.sql) — a second,
- * independent safety net if the application-level check were ever wrong.
+ * independent safety net if the application-level check were ever wrong
+ * (see ClientDeleteConflictError above).
  */
 export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
   const supabase = getSupabaseAdmin();
@@ -135,6 +159,12 @@ export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
   const { error, count } = await supabase.from("clients").delete({ count: "exact" }).eq("id", id);
 
   if (error) {
+    if (error.code === "23503") {
+      throw new ClientDeleteConflictError(
+        error.code,
+        `[clients] deleteClient blocked by FK: ${error.message ?? ""}`
+      );
+    }
     throw new Error(
       `[clients] deleteClient failed: ${error.code ?? "unknown"} ${error.message ?? ""}`
     );

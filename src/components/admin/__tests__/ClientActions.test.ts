@@ -27,13 +27,35 @@ describe("requestDeleteClient", () => {
     expect(outcome).toEqual({ status: "success" });
   });
 
-  it("409 protegido → code protected", async () => {
+  it("409 has_related_projects → code has_related_projects", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ ok: false, error: "protected" }, 409))
+      vi.fn(async () => jsonResponse({ ok: false, error: "has_related_projects" }, 409))
     );
 
     const outcome = await requestDeleteClient("client-2");
+
+    expect(outcome).toEqual({ status: "error", code: "has_related_projects" });
+  });
+
+  it("409 has_payments → code has_payments", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "has_payments" }, 409))
+    );
+
+    const outcome = await requestDeleteClient("client-2b");
+
+    expect(outcome).toEqual({ status: "error", code: "has_payments" });
+  });
+
+  it("409 con motivo no reconocido → code protected (fallback defensivo, nunca 'generic' para un 409)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: false, error: "some_future_reason" }, 409))
+    );
+
+    const outcome = await requestDeleteClient("client-2c");
 
     expect(outcome).toEqual({ status: "error", code: "protected" });
   });
