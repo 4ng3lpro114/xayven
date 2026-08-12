@@ -8,6 +8,8 @@ import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { CopyLinkButton } from "@/components/admin/CopyLinkButton";
 import { NewMaintenanceChargeForm } from "@/components/admin/NewMaintenanceChargeForm";
 import { ConfirmWiseButtons } from "@/components/admin/ConfirmWiseButtons";
+import { ProjectActions } from "@/components/admin/ProjectActions";
+import { getProjectProtection } from "@/lib/projects/protection";
 import { SITE_URL } from "@/lib/constants";
 
 const STATUS_LABELS_ES: Record<string, string> = {
@@ -38,6 +40,12 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
   const portalUrl = `${SITE_URL}/es/portal/${project.portalToken}`;
   const pendingWise = payments.filter((p) => p.provider === "WISE" && p.status === "PENDING");
 
+  // Misma fuente de verdad que DELETE /api/admin/projects/[id]/route.ts —
+  // getProjectProtection() nunca se recalcula en paralelo aquí, así que
+  // esta página no puede mostrar un motivo distinto al que el backend
+  // realmente usaría para bloquear el borrado (Fase 8B).
+  const { importance, reason: protectedReason } = getProjectProtection(project, payments);
+
   return (
     <div>
       <Link
@@ -48,14 +56,21 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
         Volver
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-fg">{project.name}</h1>
           <p className="mt-1 text-sm text-fg-muted">
             {client?.name} · {client?.email} · Estado: {project.status}
           </p>
         </div>
-        <CopyLinkButton value={portalUrl} label="Copiar enlace del cliente" />
+        <div className="flex flex-col items-end gap-3">
+          <CopyLinkButton value={portalUrl} label="Copiar enlace del cliente" />
+          <ProjectActions
+            projectId={project.id}
+            importance={importance}
+            protectedReason={protectedReason}
+          />
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">

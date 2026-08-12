@@ -1,0 +1,50 @@
+import { describe, it, expect, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+/**
+ * Isolated in its own file (same reasoning as the sibling client/
+ * conversation delete tests): mocking deleteProject() to throw a generic
+ * failure would otherwise interfere with the real round-trip tests in
+ * route.test.ts.
+ */
+vi.mock("@/lib/auth/admin", () => ({
+  requireAdminSession: () => Promise.resolve(true),
+}));
+
+vi.mock("@/lib/db/paymentsStore", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/db/paymentsStore")>();
+  return {
+    ...actual,
+    deleteProject: vi.fn(async () => {
+      throw new Error("internal detail that must never reach the client, e.g. a raw Supabase error body");
+    }),
+  };
+});
+
+import { DELETE } from "../route";
+import { createClient as createPaymentsClient, createProject } from "@/lib/db/paymentsStore";
+
+describe("DELETE .../projects/[id] — error interno no controlado", () => {
+  it("nunca expone el mensaje real ni un stack trace — responde 500 genérico y seguro", async () => {
+    const client = await createPaymentsClient({
+      name: "Cliente de prueba",
+      email: `t-${Date.now()}-${Math.random()}@example.com`,
+    });
+    const project = await createProject({ clientId: client.id, name: "Proyecto", totalAmount: 1000 });
+
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/admin/projects/x", { method: "DELETE" }),
+      { params: Promise.resolve({ id: project.id }) }
+    );
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("delete_failed");
+
+    const bodyText = JSON.stringify(body);
+    expect(bodyText).not.toContain("internal detail");
+    expect(bodyText).not.toContain("Supabase");
+    expect(bodyText).not.toMatch(/at .*\.ts:\d+/);
+  });
+});

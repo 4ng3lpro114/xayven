@@ -414,6 +414,65 @@ export async function setProjectPaidAmount(
   return rowToProject(data as ProjectRow);
 }
 
+/**
+ * Thrown by deleteProject() specifically when Postgres rejects the DELETE
+ * with a foreign-key violation (`error.code === "23503"`) — distinguished
+ * from any other Supabase failure so the caller (DELETE
+ * /api/admin/projects/[id]/route.ts) can map it to a controlled 409
+ * instead of a generic 500, without ever forwarding the raw Postgres
+ * message to the client. Fase 8B (implementación de eliminación segura de
+ * proyectos): same pattern as ClientDeleteConflictError — this is the
+ * safety net for the rare case where getProjectProtectionReason() said
+ * deletion was safe but a payment was created for this project in the
+ * tiny window between that check and this real DELETE (race condition) —
+ * the `ON DELETE RESTRICT` FK is the last line of defense either way.
+ */
+export class ProjectDeleteConflictError extends Error {
+  readonly pgCode: string;
+
+  constructor(pgCode: string, message: string) {
+    super(message);
+    this.name = "ProjectDeleteConflictError";
+    this.pgCode = pgCode;
+  }
+}
+
+/**
+ * Real, permanent deletion (Fase 8B) — same discipline as deleteClient()/
+ * deleteConversation(): never falls back to memory on a Supabase error,
+ * since a fabricated success would be dangerous here. The actual
+ * protection decision (is this project safe to delete at all) is NOT this
+ * function's job — it lives in getProjectProtectionReason() and is
+ * enforced by the caller (see DELETE /api/admin/projects/[id]/route.ts)
+ * BEFORE this is ever invoked. `payments.project_id` is also `ON DELETE
+ * RESTRICT` at the database level (see 0002_payments.sql) — a second,
+ * independent safety net if the application-level check were ever wrong
+ * (see ProjectDeleteConflictError above).
+ */
+export async function deleteProject(id: string): Promise<{ deleted: boolean }> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return { deleted: projectsMemory.delete(id) };
+  }
+
+  const { error, count } = await supabase.from("projects").delete({ count: "exact" }).eq("id", id);
+
+  if (error) {
+    if (error.code === "23503") {
+      throw new ProjectDeleteConflictError(
+        error.code,
+        `[projects] deleteProject blocked by FK: ${error.message ?? ""}`
+      );
+    }
+    throw new Error(
+      `[projects] deleteProject failed: ${error.code ?? "unknown"} ${error.message ?? ""}`
+    );
+  }
+
+  return { deleted: (count ?? 0) > 0 };
+}
+
 // ---------------------------------------------------------------------------
 // Payments
 // ---------------------------------------------------------------------------
