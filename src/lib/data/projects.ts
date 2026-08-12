@@ -22,6 +22,13 @@ export interface Project {
   /** Visual accent used for the generated cover art — keeps every cover
    *  consistent with the brand system instead of using stock imagery. */
   accent: "violet" | "ink" | "duotone";
+  /** Defaults to true when omitted. Set to `false` to temporarily hide a
+   *  project from every public listing (/work, homepage, sitemap, the AI's
+   *  knowledge base) and make its individual page 404 — without deleting
+   *  its definition. See work/page.tsx, work/[slug]/page.tsx,
+   *  SelectedWork.tsx, sitemap.ts and ai/knowledge.ts, all of which filter
+   *  on this same field. */
+  published?: boolean;
   es: ProjectCopy;
   en: ProjectCopy;
 }
@@ -73,6 +80,7 @@ export const projects: Project[] = [
     year: "2026",
     stack: ["Dirección de arte", "Identidad visual", "Prototipo de producto"],
     accent: "ink",
+    published: false,
     es: {
       title: "Tienda local — Jardín, Antioquia",
       category: "Diseño web · Concepto",
@@ -112,6 +120,7 @@ export const projects: Project[] = [
     year: "2026",
     stack: ["Dirección de arte", "UX de búsqueda", "Prototipo de producto"],
     accent: "duotone",
+    published: false,
     es: {
       title: "Inmobiliaria boutique",
       category: "Diseño web · Concepto",

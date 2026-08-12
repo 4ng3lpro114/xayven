@@ -22,6 +22,7 @@ export function buildSystemPrompt(dict: Dictionary, locale: Locale): string {
     .join("\n");
 
   const projectsBlock = projects
+    .filter((p) => p.published !== false)
     .map((p) => {
       const copy = getProjectCopy(p, locale);
       const label = p.type === "real" ? "real project" : "concept project, NOT a real client";

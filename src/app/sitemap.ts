@@ -23,7 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const allPaths = [
     ...staticPaths,
-    ...projects.map((p) => `/work/${p.slug}`),
+    ...projects.filter((p) => p.published !== false).map((p) => `/work/${p.slug}`),
   ];
 
   for (const path of allPaths) {

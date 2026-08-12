@@ -18,7 +18,8 @@ import { hasLocale, locales, type Locale } from "@/lib/i18n/config";
 import { buildMetadata } from "@/lib/seo";
 
 export function generateStaticParams() {
-  return locales.flatMap((locale) => projects.map((p) => ({ locale, slug: p.slug })));
+  const publishedProjects = projects.filter((p) => p.published !== false);
+  return locales.flatMap((locale) => publishedProjects.map((p) => ({ locale, slug: p.slug })));
 }
 
 export async function generateMetadata({
@@ -53,13 +54,14 @@ export default async function ProjectPage({
   const locale = rawLocale;
 
   const project = getProjectBySlug(slug);
-  if (!project) notFound();
+  if (!project || project.published === false) notFound();
 
   const dict = await getDictionary(locale);
   const copy = getProjectCopy(project, locale);
 
-  const currentIndex = projects.findIndex((p) => p.slug === project.slug);
-  const next = projects[(currentIndex + 1) % projects.length];
+  const publishedProjects = projects.filter((p) => p.published !== false);
+  const currentIndex = publishedProjects.findIndex((p) => p.slug === project.slug);
+  const next = publishedProjects[(currentIndex + 1) % publishedProjects.length];
   const nextCopy = getProjectCopy(next, locale);
 
   const fields: { label: string; value: string }[] = [

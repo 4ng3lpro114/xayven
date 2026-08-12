@@ -24,7 +24,7 @@ export function SelectedWork({ dict, locale }: { dict: Dictionary; locale: Local
 
         <div className="mt-12">
           <ProjectGrid
-            projects={projects}
+            projects={projects.filter((p) => p.published !== false)}
             locale={locale}
             realBadgeLabel={dict.work.realBadge}
             conceptBadgeLabel={dict.work.conceptBadge}

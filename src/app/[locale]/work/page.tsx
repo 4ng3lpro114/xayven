@@ -40,7 +40,7 @@ export default async function WorkPage({ params }: PageProps<"/[locale]/work">) 
       <Section>
         <Container>
           <ProjectGrid
-            projects={projects}
+            projects={projects.filter((p) => p.published !== false)}
             locale={locale}
             realBadgeLabel={dict.work.realBadge}
             conceptBadgeLabel={dict.work.conceptBadge}
