@@ -42,6 +42,9 @@ export default async function ProtectedAdminLayout({
               <Link href="/admin/payments" className="transition-colors hover:text-fg">
                 Pagos
               </Link>
+              <Link href="/admin/statistics" className="transition-colors hover:text-fg">
+                Estadísticas
+              </Link>
             </nav>
           </div>
           <LogoutButton>
