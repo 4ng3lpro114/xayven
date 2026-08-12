@@ -151,6 +151,70 @@ describe("convertConversationToClient — idempotencia", () => {
   });
 });
 
+describe("convertConversationToClient — converted_at (Fase 9B)", () => {
+  it("conversación que se convierte por primera vez → converted_at queda establecido", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Valentina",
+      visitorEmail: "valentina@email.com",
+    });
+    expect(conversation.convertedAt).toBeNull();
+
+    const before = new Date();
+    const result = await convertConversationToClient(conversation.id);
+    const after = new Date();
+
+    expect(result.conversation.convertedAt).not.toBeNull();
+    const convertedAt = new Date(result.conversation.convertedAt!);
+    expect(convertedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(convertedAt.getTime()).toBeLessThanOrEqual(after.getTime());
+  });
+
+  it("conversión repetida → converted_at NO cambia (idempotente, nunca se sobrescribe con una fecha más nueva)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Mateo",
+      visitorEmail: "mateo@email.com",
+    });
+
+    const first = await convertConversationToClient(conversation.id);
+    const firstConvertedAt = first.conversation.convertedAt;
+    expect(firstConvertedAt).not.toBeNull();
+
+    // Espera real para que, si el código tuviera el bug de reescribir la
+    // fecha en cada llamada, el segundo valor sea detectablemente distinto.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const second = await convertConversationToClient(conversation.id);
+
+    expect(second.conversation.convertedAt).toBe(firstConvertedAt);
+  });
+
+  it("conversación existente que nunca se convirtió → convertedAt permanece null (nunca se reconstruye con created_at/updated_at ni ningún otro proxy)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Sin convertir",
+      visitorEmail: null,
+    });
+
+    expect(conversation.convertedAt).toBeNull();
+    expect(conversation.createdAt).not.toBeNull();
+    // El propio hecho de que createdAt exista no debe usarse jamás como
+    // sustituto de convertedAt — se verifica que siguen siendo campos
+    // independientes.
+  });
+
+  it("clientId y leadStatus se establecen en la MISMA operación que converted_at, nunca por separado", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Nicolás",
+      visitorEmail: "nicolas@email.com",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.conversation.clientId).toBe(result.client.id);
+    expect(result.conversation.leadStatus).toBe("client");
+    expect(result.conversation.convertedAt).not.toBeNull();
+  });
+});
+
 describe("convertConversationToClient — datos incompletos", () => {
   it("falta el email → error controlado, sin crear ni vincular nada", async () => {
     const conversation = await makeSeededConversation({

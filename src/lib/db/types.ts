@@ -28,6 +28,14 @@ export interface Conversation {
    *  real `clients` row — see src/lib/leads/conversion.ts. Null for the
    *  overwhelming majority of conversations, which never convert. */
   clientId: string | null;
+  /** ISO timestamp of the moment this conversation converted to a client
+   *  for the FIRST time — set once, in convertConversationToClient(),
+   *  never overwritten afterward (Fase 9B). Null for conversations that
+   *  never converted, AND for conversations that converted before this
+   *  field existed — that's intentional, never backfilled/reconstructed
+   *  (see supabase/migrations/0004_conversations_converted_at.sql). Do
+   *  NOT assume `clientId !== null` implies `convertedAt !== null`. */
+  convertedAt: string | null;
 
   visitorName: string | null;
   visitorEmail: string | null;

@@ -71,3 +71,30 @@ describe("listConversations — filtro por clientId (Fase 5B)", () => {
     expect(after.length).toBe(before.length + 1);
   });
 });
+
+describe("convertedAt (Fase 9B)", () => {
+  it("una conversación nueva empieza con convertedAt: null — nunca inventado", async () => {
+    const conversation = await makeConversation();
+
+    expect(conversation.convertedAt).toBeNull();
+  });
+
+  it("saveConversation() persiste convertedAt (round-trip completo vía el fallback en memoria)", async () => {
+    const conversation = await makeConversation();
+    const now = new Date().toISOString();
+
+    const saved = await saveConversation({ ...conversation, convertedAt: now });
+
+    expect(saved.convertedAt).toBe(now);
+    const reloaded = await getConversationById(conversation.id);
+    expect(reloaded?.convertedAt).toBe(now);
+  });
+
+  it("guardar otros campos NO toca convertedAt — sigue null si nunca se estableció explícitamente (compatibilidad con datos antiguos)", async () => {
+    const conversation = await makeConversation();
+
+    const saved = await saveConversation({ ...conversation, leadScore: 42 });
+
+    expect(saved.convertedAt).toBeNull();
+  });
+});

@@ -21,6 +21,9 @@ import type { Conversation } from "@/lib/db/types";
  * discussion this came out of for why (a client can have many
  * conversations over time; a single "current budget"/"current need"
  * column on `clients` would just get overwritten by the next inquiry).
+ *
+ * Fase 9B: this is also the ONE place `conversation.convertedAt` is ever
+ * set — see the comment at the `saveConversation` call below.
  */
 
 export type LeadConversionErrorCode =
@@ -75,7 +78,10 @@ export async function convertConversationToClient(
   }
 
   // Already converted — idempotent short-circuit. Never re-create or
-  // re-link once a client is attached.
+  // re-link once a client is attached, and never touch converted_at here
+  // either (Fase 9B) — this path doesn't call saveConversation() at all,
+  // so a conversation's converted_at (set once, below) is never revisited
+  // on a repeat call.
   if (conversation.clientId) {
     const existing = await getClientById(conversation.clientId);
     if (existing) {
@@ -129,6 +135,13 @@ export async function convertConversationToClient(
     ...conversation,
     clientId: client.id,
     leadStatus: "client",
+    // Fase 9B: set exactly once, the first time this conversation really
+    // converts. `conversation.convertedAt ?? ...` is the idempotency
+    // guard for the one edge case that reaches this line with it already
+    // set (client_id pointed at a since-deleted client — see the
+    // fall-through comment above) — never overwrite a real historical
+    // date with "now".
+    convertedAt: conversation.convertedAt ?? new Date().toISOString(),
   });
 
   return {

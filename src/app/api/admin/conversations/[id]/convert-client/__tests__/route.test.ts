@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { randomBytes } from "node:crypto";
-import { getOrCreateConversation, saveConversation } from "@/lib/db/conversationStore";
+import { getOrCreateConversation, saveConversation, getConversationById } from "@/lib/db/conversationStore";
 import type { Conversation } from "@/lib/db/types";
 
 /**
@@ -88,6 +88,23 @@ describe("POST /api/admin/conversations/[id]/convert-client", () => {
     expect(secondBody.ok).toBe(true);
     expect(secondBody.created).toBe(false);
     expect(secondBody.client.id).toBe(firstBody.client.id);
+  });
+
+  it("segunda llamada a esta ruta (ejecutable dos veces) → solo la primera establece converted_at (Fase 9B)", async () => {
+    requireAdminSessionMock.mockResolvedValue(true);
+    const conversation = await makeSeededConversation({
+      visitorName: "Gabriela",
+      visitorEmail: "gabriela@email.com",
+    });
+
+    await POST(makeRequest(), makeContext(conversation.id));
+    const afterFirst = await getConversationById(conversation.id);
+    expect(afterFirst?.convertedAt).not.toBeNull();
+
+    await POST(makeRequest(), makeContext(conversation.id));
+    const afterSecond = await getConversationById(conversation.id);
+
+    expect(afterSecond?.convertedAt).toBe(afterFirst?.convertedAt);
   });
 
   it("conversación inexistente → 404", async () => {
