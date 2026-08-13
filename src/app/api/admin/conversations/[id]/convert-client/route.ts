@@ -30,11 +30,17 @@ export async function POST(
 
   try {
     const result = await convertConversationToClient(id);
+    // Fase 9C audit: historyRecorded is passed through, not dropped — a
+    // `false` here means the conversion itself fully succeeded (client
+    // created/linked) but the lead_status_history audit row didn't
+    // (already logged server-side). No new alerting is built in this
+    // phase; this just stops the caller from being unable to tell.
     return NextResponse.json({
       ok: true,
       client: result.client,
       created: result.clientWasCreated,
       nameDerivedFromCompany: result.nameDerivedFromCompany,
+      historyRecorded: result.historyRecorded,
     });
   } catch (error) {
     if (error instanceof LeadConversionError) {

@@ -1,13 +1,16 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin, isDatabaseConfigured } from "@/lib/db/supabase";
-import { getGlobalMap } from "@/lib/db/memoryStore";
+import { getGlobalMap, getGlobalArray } from "@/lib/db/memoryStore";
 import type {
   ChatMessage,
   Conversation,
   ConversationCounts,
   ExtractedFields,
   LeadStatus,
+  LeadStatusChangedBy,
+  LeadStatusChangeSource,
+  LeadStatusHistoryEntry,
 } from "@/lib/db/types";
 import type { Locale } from "@/lib/i18n/config";
 
@@ -27,6 +30,7 @@ import type { Locale } from "@/lib/i18n/config";
 // ---------------------------------------------------------------------------
 
 const memoryStore = getGlobalMap<string, Conversation>("ai.conversations");
+const leadStatusHistoryMemory = getGlobalArray<LeadStatusHistoryEntry>("leads.statusHistory");
 
 function nowIso() {
   return new Date().toISOString();
@@ -119,6 +123,32 @@ function rowToConversation(row: ConversationRow): Conversation {
   };
 }
 
+interface LeadStatusHistoryRow {
+  id: string;
+  conversation_id: string;
+  client_id: string | null;
+  from_status: string | null;
+  to_status: string;
+  changed_at: string;
+  changed_by: string;
+  source: string;
+  metadata: Record<string, unknown>;
+}
+
+function rowToLeadStatusHistoryEntry(row: LeadStatusHistoryRow): LeadStatusHistoryEntry {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    clientId: row.client_id,
+    fromStatus: row.from_status as LeadStatus | null,
+    toStatus: row.to_status as LeadStatus,
+    changedAt: row.changed_at,
+    changedBy: row.changed_by as LeadStatusChangedBy,
+    source: row.source as LeadStatusChangeSource,
+    metadata: row.metadata ?? {},
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -176,11 +206,32 @@ export async function getOrCreateConversation(
   return rowToConversation(data as ConversationRow);
 }
 
+/**
+ * Fase 9C audit: a Postgres UPDATE that matches zero rows (the row was
+ * deleted, e.g. by the DELETE endpoint, between the caller's read and this
+ * write) is NOT an error from Postgres's point of view — it's a
+ * successful update of nothing. `.select().single()` turns that into a
+ * real error (PGRST116, "no rows returned") because `.single()` requires
+ * exactly one row, which is exactly how this function used to detect it —
+ * except the old code treated `error || !data` as "return the local
+ * object anyway", silently reporting success for a write that never
+ * landed. convertConversationToClient()'s second write is the concrete
+ * case this protects (see src/lib/leads/conversion.ts): if the
+ * conversation was deleted in the gap between its two writes, this must
+ * fail loudly, not hand back a `client_id` that was never actually
+ * persisted. Every caller either already has a try/catch that reports a
+ * controlled failure (the /status and /convert-client routes) or is
+ * expected to gain one — never treat this as returning `undefined`/silent
+ * success again.
+ */
 export async function saveConversation(conversation: Conversation): Promise<Conversation> {
   const supabase = getSupabaseAdmin();
   const updated: Conversation = { ...conversation, updatedAt: nowIso() };
 
   if (!supabase) {
+    if (!memoryStore.has(updated.id)) {
+      throw new Error(`[conversations] saveConversation failed: not_found ${updated.id}`);
+    }
     memoryStore.set(updated.id, updated);
     return updated;
   }
@@ -211,7 +262,11 @@ export async function saveConversation(conversation: Conversation): Promise<Conv
     .select("*")
     .single();
 
-  if (error || !data) return updated;
+  if (error || !data) {
+    throw new Error(
+      `[conversations] saveConversation failed: ${error?.code ?? "not_found"} ${error?.message ?? ""}`
+    );
+  }
   return rowToConversation(data as ConversationRow);
 }
 
@@ -304,7 +359,16 @@ export async function deleteConversation(id: string): Promise<{ deleted: boolean
   const supabase = getSupabaseAdmin();
 
   if (!supabase) {
-    return { deleted: memoryStore.delete(id) };
+    const deleted = memoryStore.delete(id);
+    // Mirrors lead_status_history.conversation_id's real ON DELETE CASCADE
+    // (Fase 9C) for the in-memory fallback only — production gets this for
+    // free from the FK itself, no application code involved.
+    if (deleted) {
+      const survivors = leadStatusHistoryMemory.filter((entry) => entry.conversationId !== id);
+      leadStatusHistoryMemory.length = 0;
+      leadStatusHistoryMemory.push(...survivors);
+    }
+    return { deleted };
   }
 
   const { error, count } = await supabase
@@ -319,4 +383,107 @@ export async function deleteConversation(id: string): Promise<{ deleted: boolean
   }
 
   return { deleted: (count ?? 0) > 0 };
+}
+
+// ---------------------------------------------------------------------------
+// lead_status_history (Fase 9C)
+// ---------------------------------------------------------------------------
+
+/**
+ * Inserts ONE transition row. Never called directly outside
+ * src/lib/leads/leadStatus.ts (changeLeadStatus) — see that module for the
+ * "only record a REAL transition, never a snapshot" rule.
+ *
+ * Same discipline as deleteClient()/deleteProject(): never falls back to
+ * memory on a real Supabase error — a silently "successful" insert that
+ * didn't actually happen would let changeLeadStatus() believe history was
+ * recorded when it wasn't (Fase 9C, regla "no fingir que se registró").
+ * The only legitimate fallback is `!supabase` (not configured at all).
+ */
+export async function recordLeadStatusChange(input: {
+  conversationId: string;
+  clientId: string | null;
+  fromStatus: LeadStatus | null;
+  toStatus: LeadStatus;
+  changedBy: LeadStatusChangedBy;
+  source: LeadStatusChangeSource;
+  metadata?: Record<string, unknown>;
+}): Promise<LeadStatusHistoryEntry> {
+  const supabase = getSupabaseAdmin();
+  const draft: LeadStatusHistoryEntry = {
+    id: randomUUID(),
+    conversationId: input.conversationId,
+    clientId: input.clientId,
+    fromStatus: input.fromStatus,
+    toStatus: input.toStatus,
+    changedAt: nowIso(),
+    changedBy: input.changedBy,
+    source: input.source,
+    metadata: input.metadata ?? {},
+  };
+
+  if (!supabase) {
+    leadStatusHistoryMemory.push(draft);
+    return draft;
+  }
+
+  const { data, error } = await supabase
+    .from("lead_status_history")
+    .insert({
+      id: draft.id,
+      conversation_id: draft.conversationId,
+      client_id: draft.clientId,
+      from_status: draft.fromStatus,
+      to_status: draft.toStatus,
+      changed_by: draft.changedBy,
+      source: draft.source,
+      metadata: draft.metadata,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `[leads] recordLeadStatusChange failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
+  }
+
+  return rowToLeadStatusHistoryEntry(data as LeadStatusHistoryRow);
+}
+
+/** Read-only — used by tests and, later, Analytics V2 (not built in this
+ *  phase). Ordered oldest-first, matching how a real transition sequence
+ *  reads naturally. */
+export async function listLeadStatusHistory(conversationId: string): Promise<LeadStatusHistoryEntry[]> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return leadStatusHistoryMemory
+      .filter((entry) => entry.conversationId === conversationId)
+      .sort((a, b) => a.changedAt.localeCompare(b.changedAt));
+  }
+
+  const { data } = await supabase
+    .from("lead_status_history")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .order("changed_at", { ascending: true });
+
+  return (data ?? []).map((row) => rowToLeadStatusHistoryEntry(row as LeadStatusHistoryRow));
+}
+
+/**
+ * Mirrors lead_status_history.client_id's real ON DELETE SET NULL for the
+ * in-memory fallback only (Fase 9C) — production gets this for free from
+ * the FK. Called from paymentsStore.ts's deleteClient() in-memory branch
+ * so a deleted client's history rows survive with client_id: null in tests
+ * too, not just in production.
+ */
+export function nullifyClientIdInLeadStatusHistoryMemory(clientId: string): void {
+  for (let i = 0; i < leadStatusHistoryMemory.length; i++) {
+    const entry = leadStatusHistoryMemory[i]!;
+    if (entry.clientId === clientId) {
+      leadStatusHistoryMemory[i] = { ...entry, clientId: null };
+    }
+  }
 }

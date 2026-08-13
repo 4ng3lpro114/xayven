@@ -94,3 +94,36 @@ export interface ConversationCounts {
   client: number;
   support: number;
 }
+
+/**
+ * Fase 9C — lead_status_history. Who actually performed a change vs. the
+ * exact mechanism that produced it are two different questions worth
+ * keeping separate: `changedBy` is coarse ("a human admin" / "the AI
+ * scoring logic" / reserved for future automation), `source` is the exact
+ * write-point (see src/lib/leads/leadStatus.ts) — the only 3 that exist
+ * today, matching the Fase 9C audit exactly. Never invent a 4th without a
+ * matching new write-point and a migration to widen the CHECK constraint.
+ */
+export type LeadStatusChangedBy = "ai" | "admin" | "system";
+export type LeadStatusChangeSource = "ai_chat_turn" | "admin_manual_status_change" | "lead_conversion";
+
+/** One row = one REAL transition (`fromStatus !== toStatus`) — never a
+ *  snapshot, never synthesized for a conversation's initial/current state.
+ *  See supabase/migrations/0005_lead_status_history.sql. */
+export interface LeadStatusHistoryEntry {
+  id: string;
+  conversationId: string;
+  /** Snapshot of the conversation's client_id at the moment of the
+   *  change — null if not yet converted, or if the client was later
+   *  deleted (ON DELETE SET NULL, same as conversations.client_id). */
+  clientId: string | null;
+  /** Null only in principle — in practice every row logged by
+   *  changeLeadStatus() has a real previous status, since no "creation"
+   *  event is ever recorded (see the Fase 9C audit, §K). */
+  fromStatus: LeadStatus | null;
+  toStatus: LeadStatus;
+  changedAt: string;
+  changedBy: LeadStatusChangedBy;
+  source: LeadStatusChangeSource;
+  metadata: Record<string, unknown>;
+}

@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { randomBytes } from "node:crypto";
 import { convertConversationToClient, LeadConversionError } from "@/lib/leads/conversion";
+import { changeLeadStatus } from "@/lib/leads/leadStatus";
 import {
   getOrCreateConversation,
   saveConversation,
   getConversationById,
+  listLeadStatusHistory,
+  deleteConversation,
 } from "@/lib/db/conversationStore";
 import type { Conversation } from "@/lib/db/types";
 
@@ -148,6 +151,152 @@ describe("convertConversationToClient — idempotencia", () => {
 
     expect(second.client.id).toBe(first.client.id);
     expect(second.clientWasCreated).toBe(false);
+  });
+});
+
+describe("convertConversationToClient — segunda escritura sobre conversación eliminada (Fase 9C)", () => {
+  it("si la conversación desaparece entre las dos escrituras, la segunda escritura falla controlada — nunca se interpreta como éxito", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Valentina",
+      visitorEmail: "valentina@email.com",
+      leadStatus: "interested",
+    });
+
+    // Reproduce exactamente la ventana entre las dos escrituras de
+    // convertConversationToClient(): la primera (leadStatus -> "client",
+    // vía changeLeadStatus) ya aterrizó...
+    const afterFirstWrite = await changeLeadStatus({
+      conversation,
+      newStatus: "client",
+      changedBy: "admin",
+      source: "lead_conversion",
+    });
+    expect(afterFirstWrite.changed).toBe(true);
+
+    // ...y justo antes de la segunda (clientId + convertedAt), la fila
+    // desaparece (borrada por otra vía, o una condición de carrera).
+    await deleteConversation(conversation.id);
+
+    // La segunda escritura, exactamente como la hace conversion.ts, debe
+    // fallar de forma controlada — nunca devolver el objeto local como si
+    // se hubiera persistido.
+    await expect(
+      saveConversation({
+        ...afterFirstWrite.conversation,
+        clientId: "some-client-id",
+        convertedAt: new Date().toISOString(),
+      })
+    ).rejects.toThrow();
+
+    expect(await getConversationById(conversation.id)).toBeNull();
+  });
+
+  it("un reintento de convertConversationToClient() tras la desaparición reporta conversation_not_found — no un éxito fantasma", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Rodrigo",
+      visitorEmail: "rodrigo@email.com",
+      leadStatus: "interested",
+    });
+
+    await changeLeadStatus({
+      conversation,
+      newStatus: "client",
+      changedBy: "admin",
+      source: "lead_conversion",
+    });
+    await deleteConversation(conversation.id);
+
+    await expect(convertConversationToClient(conversation.id)).rejects.toMatchObject({
+      code: "conversation_not_found",
+    });
+  });
+});
+
+describe("convertConversationToClient — historial de leadStatus (Fase 9C)", () => {
+  it("conversión real (interested → client) crea exactamente 1 evento con source: 'lead_conversion' (D)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Ricardo",
+      visitorEmail: "ricardo@email.com",
+      leadStatus: "interested",
+    });
+
+    await convertConversationToClient(conversation.id);
+
+    const history = await listLeadStatusHistory(conversation.id);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      fromStatus: "interested",
+      toStatus: "client",
+      changedBy: "admin",
+      source: "lead_conversion",
+    });
+  });
+
+  it("doble conversión de la misma conversación → un solo evento, nunca dos (E)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Camila",
+      visitorEmail: "camila@email.com",
+      leadStatus: "hot",
+    });
+
+    await convertConversationToClient(conversation.id);
+    await convertConversationToClient(conversation.id);
+
+    const history = await listLeadStatusHistory(conversation.id);
+    expect(history).toHaveLength(1);
+  });
+
+  it("el historial y el estado final usan la misma transición — nunca divergen (O)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Julián",
+      visitorEmail: "julian@email.com",
+      leadStatus: "exploring",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+    const history = await listLeadStatusHistory(conversation.id);
+
+    expect(result.conversation.leadStatus).toBe("client");
+    expect(history[0]!.toStatus).toBe(result.conversation.leadStatus);
+    expect(history[0]!.fromStatus).toBe("exploring");
+    // El evento de conversión se registra en el mismo instante en que
+    // changeLeadStatus() cambia leadStatus a "client" — un paso ANTES de
+    // que conversion.ts enlace clientId (deliberado, para que un fallo a
+    // mitad de camino sea auto-sanable en un reintento, ver el comentario
+    // en conversion.ts). Por eso este evento en particular queda con
+    // clientId: null; el vínculo real sigue siendo recuperable siempre vía
+    // conversation_id -> conversations.client_id (que sí queda enlazado en
+    // result.conversation.clientId).
+    expect(history[0]!.clientId).toBeNull();
+    expect(result.conversation.clientId).toBe(result.client.id);
+  });
+
+  it("conversión real → result.historyRecorded: true, nunca se ignora el resultado del historial (P)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Mariana",
+      visitorEmail: "mariana@email.com",
+      leadStatus: "interested",
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.historyRecorded).toBe(true);
+  });
+
+  it("segunda conversión (short-circuit idempotente, ya vinculada) → result.historyRecorded: true, sin evento nuevo (Q)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Esteban",
+      visitorEmail: "esteban@email.com",
+      leadStatus: "interested",
+    });
+
+    await convertConversationToClient(conversation.id);
+    const second = await convertConversationToClient(conversation.id);
+
+    expect(second.historyRecorded).toBe(true);
+    // Sigue habiendo exactamente 1 evento total — el short-circuit no
+    // intenta una nueva transición ni genera un segundo registro.
+    expect(await listLeadStatusHistory(conversation.id)).toHaveLength(1);
   });
 });
 

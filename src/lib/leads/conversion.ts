@@ -1,5 +1,6 @@
 import "server-only";
 import { getConversationById, saveConversation } from "@/lib/db/conversationStore";
+import { changeLeadStatus } from "@/lib/leads/leadStatus";
 import {
   getClientById,
   getClientByNormalizedEmail,
@@ -24,6 +25,20 @@ import type { Conversation } from "@/lib/db/types";
  *
  * Fase 9B: this is also the ONE place `conversation.convertedAt` is ever
  * set — see the comment at the `saveConversation` call below.
+ *
+ * Fase 9C: the `leadStatus -> "client"` transition itself now goes through
+ * changeLeadStatus() (the single sanctioned way to change leadStatus
+ * anywhere in this codebase) with `source: "lead_conversion"` — the one
+ * value that's allowed to actually reach "client". clientId/convertedAt
+ * are set in a SEPARATE follow-up write, deliberately in this order (status
+ * first, client link second): if the process dies between the two writes,
+ * a retry re-enters this function, finds leadStatus already "client" (so
+ * changeLeadStatus() no-ops — no duplicate history row) and finishes
+ * linking the client — self-healing. The reverse order would NOT
+ * self-heal, because the idempotent short-circuit above keys off
+ * `clientId` alone. See the Fase 9C audit for the full reasoning; this is
+ * an accepted, documented gap (no Postgres transaction is used, per Fase 1
+ * scope) rather than a true atomic write.
  */
 
 export type LeadConversionErrorCode =
@@ -52,6 +67,20 @@ export interface LeadConversionResult {
    *  distinction rather than silently presenting it as the visitor's real
    *  name (per Fase 1 decision #5). */
   nameDerivedFromCompany: boolean;
+  /**
+   * Fase 9C: mirrors ChangeLeadStatusResult.historyRecorded for the
+   * leadStatus -> "client" transition this call performed. False means
+   * the conversion itself fully succeeded (client created/linked,
+   * clientId + convertedAt persisted) but the lead_status_history row
+   * failed to insert — see changeLeadStatus()'s doc comment for why that
+   * never blocks or reverts the conversion. `true` on the idempotent
+   * short-circuit (conversation already had a client linked): no new
+   * transition is attempted on that path, so there's nothing new that
+   * could have failed to record. Callers must read this rather than
+   * assume every conversion left a complete audit trail — this phase
+   * doesn't add alerting, just stops the information from being dropped.
+   */
+  historyRecorded: boolean;
 }
 
 function normalizeEmail(email: string): string {
@@ -90,6 +119,7 @@ export async function convertConversationToClient(
         conversation,
         clientWasCreated: false,
         nameDerivedFromCompany: false,
+        historyRecorded: true,
       };
     }
     // client_id pointed at a client that no longer exists — shouldn't
@@ -131,10 +161,23 @@ export async function convertConversationToClient(
         phone: conversation.visitorPhone,
       });
 
+  // Known, documented consequence of the self-healing ordering above: the
+  // lead_status_history row this writes has `client_id: null`, because
+  // clientId isn't linked on `conversations` until the NEXT write, below.
+  // The real link is never lost — it's always recoverable via
+  // conversation_id -> conversations.client_id — this row just doesn't
+  // denormalize it directly. Reordering to link clientId first would lose
+  // the self-healing property instead (see the module doc comment).
+  const statusResult = await changeLeadStatus({
+    conversation,
+    newStatus: "client",
+    changedBy: "admin",
+    source: "lead_conversion",
+  });
+
   const updatedConversation = await saveConversation({
-    ...conversation,
+    ...statusResult.conversation,
     clientId: client.id,
-    leadStatus: "client",
     // Fase 9B: set exactly once, the first time this conversation really
     // converts. `conversation.convertedAt ?? ...` is the idempotency
     // guard for the one edge case that reaches this line with it already
@@ -149,5 +192,6 @@ export async function convertConversationToClient(
     conversation: updatedConversation,
     clientWasCreated: created,
     nameDerivedFromCompany,
+    historyRecorded: statusResult.historyRecorded,
   };
 }

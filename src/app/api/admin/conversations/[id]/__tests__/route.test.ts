@@ -77,6 +77,33 @@ describe("DELETE /api/admin/conversations/[id]", () => {
     expect(await getConversationById(conversation.id)).not.toBeNull();
   });
 
+  it("conversación con leadStatus 'client' pero client_id aún null (ventana transitoria de convertConversationToClient) → 409, no se borra (Fase 9C)", async () => {
+    requireAdminSessionMock.mockResolvedValue(true);
+    const conversation = await makeSeededConversation({ leadStatus: "client", clientId: null });
+
+    const res = await DELETE(makeRequest(), makeContext(conversation.id));
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("has_linked_client");
+
+    // Never actually deleted — still there afterward.
+    expect(await getConversationById(conversation.id)).not.toBeNull();
+  });
+
+  it("conversación convertida normalmente (leadStatus 'client' Y client_id vinculado) → 409, no se borra", async () => {
+    requireAdminSessionMock.mockResolvedValue(true);
+    const conversation = await makeSeededConversation({ leadStatus: "client", clientId: "some-client-id" });
+
+    const res = await DELETE(makeRequest(), makeContext(conversation.id));
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe("has_linked_client");
+    expect(await getConversationById(conversation.id)).not.toBeNull();
+  });
+
   it("conversación sin client_id → 200, y realmente desaparece", async () => {
     requireAdminSessionMock.mockResolvedValue(true);
     const conversation = await makeSeededConversation({ clientId: null });

@@ -16,9 +16,10 @@ import {
   getOrCreateConversation,
   saveConversation,
 } from "@/lib/db/conversationStore";
+import { changeLeadStatus } from "@/lib/leads/leadStatus";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { hasLocale } from "@/lib/i18n/config";
-import type { ChatMessage } from "@/lib/db/types";
+import type { ChatMessage, Conversation } from "@/lib/db/types";
 
 export const runtime = "nodejs";
 
@@ -97,8 +98,18 @@ export async function POST(request: NextRequest) {
   const result = await completeChat([{ role: "system", content: systemPrompt }, ...history]);
 
   if (!result.ok) {
-    // Never lose the visitor's message even if the model call failed.
-    await saveConversation(conversation);
+    // Never lose the visitor's message even if the model call failed —
+    // but this is a best-effort side write, not load-bearing for the
+    // response below (which is already reporting the AI failure, the
+    // real reason for this turn's error). Fase 9C: saveConversation() can
+    // now throw (e.g. the conversation was deleted mid-turn) — log it and
+    // still return the AI-failure response the visitor actually needs,
+    // rather than crashing with an unrelated, less useful error.
+    try {
+      await saveConversation(conversation);
+    } catch (error) {
+      console.error("[ai/chat] Failed to persist conversation after a failed AI call:", error);
+    }
     const status = result.reason === "not_configured" ? 503 : 502;
     return NextResponse.json({ ok: false, error: result.reason }, { status });
   }
@@ -112,14 +123,48 @@ export async function POST(request: NextRequest) {
   ].slice(-MAX_STORED_MESSAGES);
 
   conversation.leadScore = computeLeadScore(conversation);
-  conversation.leadStatus = deriveLeadStatus(conversation, conversation.leadScore, suggestedLeadStatus);
+  // Fase 9C: computed here, but NEVER assigned onto `conversation` directly
+  // — leadStatus only ever changes through changeLeadStatus() below, the
+  // single sanctioned write-point for the whole codebase. deriveLeadStatus
+  // reads conversation.leadStatus internally for its "already client/
+  // support, stay sticky" rule, so it must still see the CURRENT value
+  // here, unmodified.
+  const suggestedStatus = deriveLeadStatus(conversation, conversation.leadScore, suggestedLeadStatus);
 
   if (shouldGenerateSummary(conversation)) {
     const summary = await generateSummary(conversation);
     if (summary) conversation.aiSummary = summary;
   }
 
-  const saved = await saveConversation(conversation);
+  // Persist everything from this turn (messages, score, extracted fields,
+  // summary) with leadStatus untouched — then apply the status transition
+  // (if any) through the centralized function, which no-ops (no write, no
+  // history row) on the common case where the status didn't actually
+  // change. deriveLeadStatus() can never produce "client" from a
+  // non-client conversation (it only ever echoes an already-"client"
+  // status back, sticky) — so this call can never hit
+  // changeLeadStatus()'s "client requires lead_conversion" guard in
+  // practice, but the guard exists regardless, as defense in depth.
+  let saved: Conversation;
+  try {
+    saved = await saveConversation(conversation);
+    const statusResult = await changeLeadStatus({
+      conversation: saved,
+      newStatus: suggestedStatus,
+      changedBy: "ai",
+      source: "ai_chat_turn",
+    });
+    saved = statusResult.conversation;
+  } catch (error) {
+    // Fase 9C: saveConversation() now throws instead of silently
+    // "succeeding" when the conversation row is gone (e.g. deleted via
+    // /api/admin/conversations/[id] in the narrow window between this
+    // turn's start and this write) — same discipline as every other write
+    // route in this codebase: a controlled, logged failure, never a
+    // fabricated ok:true carrying a leadStatus that was never persisted.
+    console.error("[ai/chat] Failed to persist conversation turn:", error);
+    return NextResponse.json({ ok: false, error: "chat_turn_failed" }, { status: 500 });
+  }
 
   return NextResponse.json({
     ok: true,

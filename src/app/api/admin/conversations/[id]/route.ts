@@ -15,6 +15,17 @@ export const runtime = "nodejs";
  * history), which is exactly what conversations.client_id + ON DELETE SET
  * NULL was built to prevent losing. See the Fase 4A design discussion.
  *
+ * Fase 9C audit: `clientId` alone isn't enough. convertConversationToClient()
+ * writes leadStatus="client" (via changeLeadStatus) BEFORE it links
+ * clientId in a separate follow-up write (see src/lib/leads/conversion.ts)
+ * — a deliberate ordering for self-healing retries. That leaves a real,
+ * if narrow, window where leadStatus is already "client" but clientId is
+ * still null. Without this second check, a delete landing in exactly that
+ * window would destroy the conversation the pending conversion is about
+ * to finish linking. Same error code/status as the clientId check — from
+ * the caller's point of view it's the same protection, just closing a gap
+ * in when it applies.
+ *
  * Only DELETE is exported — Next.js rejects any other method on this path
  * automatically (405), no extra code needed.
  */
@@ -33,7 +44,7 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  if (conversation.clientId) {
+  if (conversation.clientId || conversation.leadStatus === "client") {
     return NextResponse.json({ ok: false, error: "has_linked_client" }, { status: 409 });
   }
 

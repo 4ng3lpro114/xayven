@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID, randomBytes } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/db/supabase";
 import { getGlobalMap, getGlobalSet } from "@/lib/db/memoryStore";
+import { nullifyClientIdInLeadStatusHistoryMemory } from "@/lib/db/conversationStore";
 import type {
   Client,
   Payment,
@@ -153,7 +154,12 @@ export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
   const supabase = getSupabaseAdmin();
 
   if (!supabase) {
-    return { deleted: clientsMemory.delete(id) };
+    const deleted = clientsMemory.delete(id);
+    // Mirrors lead_status_history.client_id's real ON DELETE SET NULL
+    // (Fase 9C) for the in-memory fallback only — production gets this
+    // for free from the FK itself.
+    if (deleted) nullifyClientIdInLeadStatusHistoryMemory(id);
+    return { deleted };
   }
 
   const { error, count } = await supabase.from("clients").delete({ count: "exact" }).eq("id", id);

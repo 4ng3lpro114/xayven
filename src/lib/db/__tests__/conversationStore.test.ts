@@ -45,6 +45,26 @@ describe("deleteConversation", () => {
   });
 });
 
+describe("saveConversation — segunda escritura sobre una conversación inexistente (Fase 9C)", () => {
+  it("guardar una conversación ya eliminada lanza en vez de devolver el objeto local como si se hubiera guardado", async () => {
+    const conversation = await makeConversation();
+    await deleteConversation(conversation.id);
+
+    await expect(saveConversation({ ...conversation, leadScore: 99 })).rejects.toThrow();
+
+    // Sigue sin existir — no fue "resucitada" por la escritura fallida.
+    expect(await getConversationById(conversation.id)).toBeNull();
+  });
+
+  it("un id que nunca existió tampoco se puede 'guardar' silenciosamente", async () => {
+    const conversation = await makeConversation();
+    const neverExisted = { ...conversation, id: "00000000-0000-0000-0000-000000000000" };
+
+    await expect(saveConversation(neverExisted)).rejects.toThrow();
+    expect(await getConversationById(neverExisted.id)).toBeNull();
+  });
+});
+
 describe("listConversations — filtro por clientId (Fase 5B)", () => {
   it("devuelve solo las conversaciones vinculadas al client_id pedido", async () => {
     const clientId = `client-${randomBytes(6).toString("hex")}`;

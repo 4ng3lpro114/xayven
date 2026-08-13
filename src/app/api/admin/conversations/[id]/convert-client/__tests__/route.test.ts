@@ -69,6 +69,8 @@ describe("POST /api/admin/conversations/[id]/convert-client", () => {
     expect(body.client.email).toBe("diego@email.com");
     expect(body.created).toBe(true);
     expect(body.nameDerivedFromCompany).toBe(false);
+    // Fase 9C audit: historyRecorded must reach the caller, not be dropped.
+    expect(body.historyRecorded).toBe(true);
   });
 
   it("segunda llamada sobre la misma conversación → 200, idempotente, created=false, mismo cliente", async () => {
