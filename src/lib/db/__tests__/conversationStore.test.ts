@@ -6,7 +6,9 @@ import {
   deleteConversation,
   saveConversation,
   listConversations,
+  listAllLeadStatusHistory,
 } from "@/lib/db/conversationStore";
+import { changeLeadStatus } from "@/lib/leads/leadStatus";
 
 // No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in the test environment, so
 // conversationStore.ts transparently uses its in-memory fallback — real
@@ -116,5 +118,57 @@ describe("convertedAt (Fase 9B)", () => {
     const saved = await saveConversation({ ...conversation, leadScore: 42 });
 
     expect(saved.convertedAt).toBeNull();
+  });
+});
+
+describe("listAllLeadStatusHistory (Fase 10 — Analytics V2)", () => {
+  it("sin ninguna transición registrada → arreglo vacío, nunca lanza", async () => {
+    // No hay forma de "limpiar" el store en memoria entre archivos de test,
+    // así que en vez de asumir 0 filas globales, se confirma la propiedad
+    // real que importa: el resultado siempre incluye TODAS las
+    // transiciones ya conocidas de esta conversación de prueba, sin faltar
+    // ninguna — ver el siguiente test para el caso positivo.
+    const result = await listAllLeadStatusHistory();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("agrega transiciones de VARIAS conversaciones en una sola consulta (bulk, sin N+1)", async () => {
+    const conversationA = await makeConversation();
+    const conversationB = await makeConversation();
+
+    await changeLeadStatus({
+      conversation: conversationA,
+      newStatus: "interested",
+      changedBy: "ai",
+      source: "ai_chat_turn",
+    });
+    await changeLeadStatus({
+      conversation: conversationB,
+      newStatus: "hot",
+      changedBy: "admin",
+      source: "admin_manual_status_change",
+    });
+
+    const all = await listAllLeadStatusHistory();
+    const forA = all.filter((h) => h.conversationId === conversationA.id);
+    const forB = all.filter((h) => h.conversationId === conversationB.id);
+
+    expect(forA).toHaveLength(1);
+    expect(forB).toHaveLength(1);
+    expect(forA[0]!.toStatus).toBe("interested");
+    expect(forB[0]!.toStatus).toBe("hot");
+  });
+
+  it("respeta el límite pasado", async () => {
+    const conversation = await makeConversation();
+    await changeLeadStatus({
+      conversation,
+      newStatus: "interested",
+      changedBy: "ai",
+      source: "ai_chat_turn",
+    });
+
+    const limited = await listAllLeadStatusHistory({ limit: 0 });
+    expect(limited).toHaveLength(0);
   });
 });

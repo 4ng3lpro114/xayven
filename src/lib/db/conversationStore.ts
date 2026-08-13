@@ -473,6 +473,42 @@ export async function listLeadStatusHistory(conversationId: string): Promise<Lea
 }
 
 /**
+ * Fase 10 (Analytics V2) — the bulk-fetch counterpart to
+ * listLeadStatusHistory(conversationId): ALL transition rows across every
+ * conversation, in one query. Exists specifically so the funnel-evolution
+ * and conversion-velocity aggregations (src/lib/statistics/*) never do one
+ * query per conversation (N+1) — same "bulk-fetch once, reduce in memory"
+ * discipline as listConversations()/listPayments() already use for the
+ * rest of /admin/statistics.
+ *
+ * Ordered oldest-first by `changed_at` (not grouped by conversation) —
+ * callers that need per-conversation sequences group this themselves in
+ * memory (trivial: filter/group by conversationId), same as
+ * buildClientSummaries() already does with conversations/projects/payments
+ * in src/lib/clients/summary.ts.
+ */
+export async function listAllLeadStatusHistory(options?: {
+  limit?: number;
+}): Promise<LeadStatusHistoryEntry[]> {
+  const supabase = getSupabaseAdmin();
+  const limit = options?.limit ?? 5000;
+
+  if (!supabase) {
+    return [...leadStatusHistoryMemory]
+      .sort((a, b) => a.changedAt.localeCompare(b.changedAt))
+      .slice(0, limit);
+  }
+
+  const { data } = await supabase
+    .from("lead_status_history")
+    .select("*")
+    .order("changed_at", { ascending: true })
+    .limit(limit);
+
+  return (data ?? []).map((row) => rowToLeadStatusHistoryEntry(row as LeadStatusHistoryRow));
+}
+
+/**
  * Mirrors lead_status_history.client_id's real ON DELETE SET NULL for the
  * in-memory fallback only (Fase 9C) — production gets this for free from
  * the FK. Called from paymentsStore.ts's deleteClient() in-memory branch

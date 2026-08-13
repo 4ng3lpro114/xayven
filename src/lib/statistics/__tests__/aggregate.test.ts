@@ -9,8 +9,23 @@ import {
   buildRevenuePeriodStats,
   buildRevenueSeries,
   buildStatisticsSnapshot,
+  buildConversionPeriodStats,
+  buildFunnelSnapshot,
+  buildFunnelEvolution,
+  buildLeadsSeries,
+  buildProjectsSeries,
+  buildConversionsSeries,
+  buildClientsExtendedStats,
+  buildProjectRawStatusBreakdown,
+  buildRevenueByProject,
+  buildRevenueByClient,
+  buildRevenueByPaymentType,
+  buildAIConversationStats,
+  buildMaintenanceStats,
+  isLeadGeneratingConversation,
 } from "@/lib/statistics/aggregate";
-import type { Conversation } from "@/lib/db/types";
+import { buildClientSummaries } from "@/lib/clients/summary";
+import type { Conversation, LeadStatusHistoryEntry, MaintenanceRequest } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
 
 const NOW = new Date("2026-08-12T12:00:00.000Z");
@@ -149,7 +164,7 @@ describe("buildProjectsStats", () => {
       makeProject({ id: "p4", status: "lead" }),
       makeProject({ id: "p5", status: "cancelled" }),
     ];
-    const stats = buildProjectsStats(projects);
+    const stats = buildProjectsStats(projects, "all", NOW);
     expect(stats.byStage.completed).toBe(1);
     expect(stats.byStage.in_progress).toBe(2);
     expect(stats.byStage.pending).toBe(1);
@@ -162,7 +177,7 @@ describe("buildProjectsStats", () => {
       makeProject({ id: "p1", status: "awaiting_payment", totalAmount: 1000, paidAmount: 0 }),
       makeProject({ id: "p2", status: "cancelled", totalAmount: 2000, paidAmount: 0 }),
     ];
-    const stats = buildProjectsStats(projects);
+    const stats = buildProjectsStats(projects, "all", NOW);
     expect(stats.pendingByCurrency.COP).toBe(1000); // no 3000
   });
 
@@ -171,7 +186,17 @@ describe("buildProjectsStats", () => {
       makeProject({ id: "p1", totalAmount: 1000 }),
       makeProject({ id: "p2", status: "cancelled", totalAmount: 2000 }),
     ];
-    expect(buildProjectsStats(projects).contractedByCurrency.COP).toBe(3000);
+    expect(buildProjectsStats(projects, "all", NOW).contractedByCurrency.COP).toBe(3000);
+  });
+
+  it("newInPeriod (Fase 10) — cuenta solo los proyectos creados dentro del período", () => {
+    const projects = [
+      makeProject({ id: "p1", createdAt: iso(2) }), // dentro de 7d
+      makeProject({ id: "p2", createdAt: iso(40) }), // fuera de 7d
+    ];
+    const stats = buildProjectsStats(projects, "7d", NOW);
+    expect(stats.newInPeriod).toBe(1);
+    expect(stats.totalAllTime).toBe(2);
   });
 });
 
@@ -381,5 +406,377 @@ describe("buildStatisticsSnapshot", () => {
     expect(snapshot.period).toBe("7d");
     expect(snapshot.clients.newInPeriod).toBe(1);
     expect(snapshot.clients.totalAllTime).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fase 10 — Analytics V2
+// ---------------------------------------------------------------------------
+
+let historyIdCounter = 0;
+function makeHistoryEntry(overrides: Partial<LeadStatusHistoryEntry> = {}): LeadStatusHistoryEntry {
+  historyIdCounter += 1;
+  return {
+    id: `history-${historyIdCounter}`,
+    conversationId: "conv-1",
+    clientId: null,
+    fromStatus: "exploring",
+    toStatus: "interested",
+    changedAt: iso(0),
+    changedBy: "ai",
+    source: "ai_chat_turn",
+    metadata: {},
+    ...overrides,
+  };
+}
+
+function makeMaintenanceRequest(overrides: Partial<MaintenanceRequest> = {}): MaintenanceRequest {
+  return {
+    id: "maint-1",
+    createdAt: iso(0),
+    name: "Cliente",
+    email: "cliente@example.com",
+    company: null,
+    website: "https://example.com",
+    need: "Actualizar plugins",
+    priority: "normal",
+    message: "...",
+    status: "new",
+    ...overrides,
+  };
+}
+
+describe("buildConversionPeriodStats", () => {
+  it("cuenta solo conversiones con converted_at dentro del período", () => {
+    const conversations = [
+      makeConversation({ id: "a", clientId: "c1", convertedAt: iso(2) }), // dentro de 7d
+      makeConversation({ id: "b", clientId: "c2", convertedAt: iso(40) }), // fuera de 7d
+    ];
+    const stats = buildConversionPeriodStats(conversations, "7d", NOW);
+    expect(stats.convertedInPeriod).toBe(1);
+  });
+
+  it("convertedAt null (pre-Fase 9B) NUNCA se cuenta en el período — se reporta aparte, nunca como 'ahora'", () => {
+    const conversations = [
+      makeConversation({ id: "a", clientId: "c1", convertedAt: null }),
+      makeConversation({ id: "b", clientId: "c2", convertedAt: iso(2) }),
+    ];
+    const stats = buildConversionPeriodStats(conversations, "7d", NOW);
+    expect(stats.convertedInPeriod).toBe(1); // solo "b" — "a" nunca se infiere como reciente
+    expect(stats.unknownDateConversionsAllTime).toBe(1);
+  });
+
+  it("clientId null (nunca convertido) no cuenta ni en período ni en fecha desconocida", () => {
+    const conversations = [makeConversation({ id: "a", clientId: null, convertedAt: null })];
+    const stats = buildConversionPeriodStats(conversations, "7d", NOW);
+    expect(stats.convertedInPeriod).toBe(0);
+    expect(stats.unknownDateConversionsAllTime).toBe(0);
+  });
+});
+
+describe("buildFunnelSnapshot — porcentajes", () => {
+  it("calcula pctOfTotal y pctOfPrevious correctamente sobre una distribución real", () => {
+    const conversations = [
+      makeConversation({ id: "1", leadStatus: "exploring" }),
+      makeConversation({ id: "2", leadStatus: "exploring" }),
+      makeConversation({ id: "3", leadStatus: "interested" }),
+      makeConversation({ id: "4", leadStatus: "hot" }),
+      makeConversation({ id: "5", leadStatus: "client" }),
+    ];
+    const snapshot = buildFunnelSnapshot(conversations);
+
+    const [conv, exploring, interested, hot, client] = snapshot.stages;
+    expect(conv!.count).toBe(5);
+    expect(exploring!.count).toBe(5); // todas están en exploring o más allá
+    expect(interested!.count).toBe(3); // interested + hot + client
+    expect(hot!.count).toBe(2); // hot + client
+    expect(client!.count).toBe(1);
+
+    expect(client!.pctOfTotal).toBe(20); // 1/5
+    expect(hot!.pctOfPrevious).toBe(67); // 2/3 redondeado
+  });
+
+  it("Fase 10 (opción 3): exactCount es el conteo crudo por estado — distinto de count (acumulado) en las etapas intermedias", () => {
+    const conversations = [
+      makeConversation({ id: "1", leadStatus: "exploring" }),
+      makeConversation({ id: "2", leadStatus: "exploring" }),
+      makeConversation({ id: "3", leadStatus: "interested" }),
+      makeConversation({ id: "4", leadStatus: "hot" }),
+      makeConversation({ id: "5", leadStatus: "client" }),
+    ];
+    const snapshot = buildFunnelSnapshot(conversations);
+    const [conv, exploring, interested, hot, client] = snapshot.stages;
+
+    // "conversations" y "client" coinciden SIEMPRE con count por construcción.
+    expect(conv!.exactCount).toBe(conv!.count); // 5 === 5
+    expect(client!.exactCount).toBe(client!.count); // 1 === 1
+
+    // Las 3 etapas intermedias SÍ difieren: exactCount es crudo, count es acumulado.
+    expect(exploring!.exactCount).toBe(2); // solo las 2 que están literalmente en "exploring"
+    expect(exploring!.count).toBe(5); // acumulado (exploring o más allá)
+    expect(interested!.exactCount).toBe(1);
+    expect(interested!.count).toBe(3);
+    expect(hot!.exactCount).toBe(1);
+    expect(hot!.count).toBe(2);
+  });
+
+  it("exactCount usa EXACTAMENTE la misma regla que la pestaña Leads ('Por estado') — nunca una definición distinta", () => {
+    const conversations = [
+      makeConversation({ id: "1", leadStatus: "exploring" }),
+      makeConversation({ id: "2", leadStatus: "interested" }),
+      makeConversation({ id: "3", leadStatus: "interested" }),
+      makeConversation({ id: "4", leadStatus: "hot" }),
+      makeConversation({ id: "5", leadStatus: "client" }),
+      makeConversation({ id: "6", leadStatus: "support" }),
+    ];
+
+    // La misma regla que usa LeadsTab en page.tsx: byStatus[c.leadStatus] += 1.
+    const byStatus: Record<string, number> = { exploring: 0, interested: 0, hot: 0, client: 0, support: 0 };
+    for (const c of conversations) byStatus[c.leadStatus] = (byStatus[c.leadStatus] ?? 0) + 1;
+
+    const snapshot = buildFunnelSnapshot(conversations);
+    const [, exploring, interested, hot, client] = snapshot.stages;
+
+    expect(exploring!.exactCount).toBe(byStatus.exploring);
+    expect(interested!.exactCount).toBe(byStatus.interested);
+    expect(hot!.exactCount).toBe(byStatus.hot);
+    expect(client!.exactCount).toBe(byStatus.client);
+  });
+
+  it("'support' se excluye del alcance interested/hot pero cuenta en el total y se reporta aparte", () => {
+    const conversations = [
+      makeConversation({ id: "1", leadStatus: "support" }),
+      makeConversation({ id: "2", leadStatus: "exploring" }),
+    ];
+    const snapshot = buildFunnelSnapshot(conversations);
+    expect(snapshot.supportCount).toBe(1);
+    expect(snapshot.stages[0]!.count).toBe(2); // "conversations" incluye support
+    expect(snapshot.stages[1]!.count).toBe(1); // "exploring o más allá" NO incluye support
+  });
+
+  it("array vacío → todos los conteos en 0, ningún porcentaje inventado (null, nunca NaN/Infinity)", () => {
+    const snapshot = buildFunnelSnapshot([]);
+    for (const stage of snapshot.stages) {
+      expect(stage.count).toBe(0);
+      expect(stage.exactCount).toBe(0);
+      expect(stage.pctOfTotal).toBeNull();
+      if (stage.key !== "conversations") {
+        expect(Number.isNaN(stage.pctOfPrevious)).toBe(false);
+      }
+    }
+  });
+});
+
+describe("buildFunnelEvolution", () => {
+  it("history vacío → hasData false, sin inventar series", () => {
+    const evolution = buildFunnelEvolution([], "30d", NOW);
+    expect(evolution.hasData).toBe(false);
+    expect(evolution.reachedInterested).toEqual([]);
+  });
+
+  it("cuenta transiciones reales por to_status, agrupadas en buckets", () => {
+    const history = [
+      makeHistoryEntry({ toStatus: "interested", changedAt: iso(1) }),
+      makeHistoryEntry({ toStatus: "hot", changedAt: iso(1) }),
+      makeHistoryEntry({ toStatus: "client", changedAt: iso(1) }),
+    ];
+    const evolution = buildFunnelEvolution(history, "7d", NOW);
+    expect(evolution.hasData).toBe(true);
+    expect(evolution.reachedInterested.reduce((s, p) => s + p.value, 0)).toBe(1);
+    expect(evolution.reachedHot.reduce((s, p) => s + p.value, 0)).toBe(1);
+    expect(evolution.reachedClient.reduce((s, p) => s + p.value, 0)).toBe(1);
+  });
+});
+
+describe("series de leads/proyectos/conversiones", () => {
+  it("buildLeadsSeries cuenta conversaciones nuevas por bucket", () => {
+    const conversations = [makeConversation({ id: "a", createdAt: iso(1) })];
+    const series = buildLeadsSeries(conversations, "7d", NOW);
+    expect(series.points.reduce((s, p) => s + p.value, 0)).toBe(1);
+  });
+
+  it("buildLeadsSeries con array vacío no lanza y no inventa actividad", () => {
+    const series = buildLeadsSeries([], "7d", NOW);
+    expect(series.points.every((p) => p.value === 0)).toBe(true);
+  });
+
+  it("buildProjectsSeries cuenta proyectos nuevos por bucket", () => {
+    const projects = [makeProject({ id: "p1", createdAt: iso(2) })];
+    const series = buildProjectsSeries(projects, "7d", NOW);
+    expect(series.points.reduce((s, p) => s + p.value, 0)).toBe(1);
+  });
+
+  it("buildConversionsSeries cuenta solo conversiones con converted_at conocido, y reporta las de fecha desconocida aparte", () => {
+    const conversations = [
+      makeConversation({ id: "a", clientId: "c1", convertedAt: iso(1) }),
+      makeConversation({ id: "b", clientId: "c2", convertedAt: null }),
+    ];
+    const series = buildConversionsSeries(conversations, "7d", NOW);
+    expect(series.points.reduce((s, p) => s + p.value, 0)).toBe(1);
+    expect(series.unknownDateConversionsAllTime).toBe(1);
+  });
+});
+
+describe("buildClientsExtendedStats — clientes recurrentes", () => {
+  it("cuenta correctamente clientes con proyectos y clientes recurrentes (>1 proyecto)", () => {
+    const clients = [makeClient({ id: "c1" }), makeClient({ id: "c2" }), makeClient({ id: "c3" })];
+    const projects = [
+      makeProject({ id: "p1", clientId: "c1" }),
+      makeProject({ id: "p2", clientId: "c1" }), // c1 tiene 2 → recurrente
+      makeProject({ id: "p3", clientId: "c2" }), // c2 tiene 1 → no recurrente
+      // c3 sin proyectos
+    ];
+    const summaries = buildClientSummaries({ clients, conversations: [], projects, payments: [] });
+    const extended = buildClientsExtendedStats(summaries);
+
+    expect(extended.withProjectsCount).toBe(2); // c1, c2
+    expect(extended.recurringCount).toBe(1); // solo c1
+  });
+
+  it("totalPaidByCurrency nunca mezcla monedas distintas", () => {
+    const clients = [makeClient({ id: "c1" }), makeClient({ id: "c2" })];
+    const projects = [
+      makeProject({ id: "p1", clientId: "c1", currency: "COP", totalAmount: 1000, paidAmount: 1000 }),
+      makeProject({ id: "p2", clientId: "c2", currency: "USD", totalAmount: 500, paidAmount: 500 }),
+    ];
+    const summaries = buildClientSummaries({ clients, conversations: [], projects, payments: [] });
+    const extended = buildClientsExtendedStats(summaries);
+
+    expect(extended.totalPaidByCurrency.COP).toBe(1000);
+    expect(extended.totalPaidByCurrency.USD).toBe(500);
+  });
+});
+
+describe("buildProjectRawStatusBreakdown", () => {
+  it("cuenta cada uno de los 9 ProjectStatus reales por separado", () => {
+    const projects = [
+      makeProject({ id: "p1", status: "active" }),
+      makeProject({ id: "p2", status: "in_progress" }),
+      makeProject({ id: "p3", status: "in_progress" }),
+    ];
+    const breakdown = buildProjectRawStatusBreakdown(projects);
+    expect(breakdown.active).toBe(1);
+    expect(breakdown.in_progress).toBe(2);
+    expect(breakdown.review).toBe(0);
+    expect(breakdown.maintenance).toBe(0);
+  });
+});
+
+describe("ingresos por proyecto/cliente/tipo de pago", () => {
+  it("buildRevenueByProject suma solo pagos APPROVED, agrupados por projectId", () => {
+    const projects = [makeProject({ id: "p1", name: "Sitio web" })];
+    const payments = [
+      makePayment({ id: "pay1", projectId: "p1", amount: 500_000, status: "APPROVED" }),
+      makePayment({ id: "pay2", projectId: "p1", amount: 300_000, status: "PENDING" }), // no cuenta
+    ];
+    const stats = buildRevenueByProject(payments, projects);
+    expect(stats.entries).toHaveLength(1);
+    expect(stats.entries[0]!.label).toBe("Sitio web");
+    expect(stats.entries[0]!.amountsByCurrency.COP).toBe(500_000);
+  });
+
+  it("buildRevenueByProject nunca mezcla monedas distintas del mismo proyecto", () => {
+    const projects = [makeProject({ id: "p1" })];
+    const payments = [
+      makePayment({ id: "pay1", projectId: "p1", currency: "COP", amount: 1000, status: "APPROVED" }),
+      makePayment({ id: "pay2", projectId: "p1", currency: "USD", amount: 50, status: "APPROVED" }),
+    ];
+    const stats = buildRevenueByProject(payments, projects);
+    expect(stats.entries[0]!.amountsByCurrency).toEqual({ COP: 1000, USD: 50 });
+  });
+
+  it("buildRevenueByClient usa el nombre del cliente como label, nunca email/teléfono", () => {
+    const clients = [makeClient({ id: "c1", name: "Ana Restrepo", email: "ana@example.com", phone: "3000000000" })];
+    const payments = [makePayment({ id: "pay1", clientId: "c1", amount: 200_000, status: "APPROVED" })];
+    const stats = buildRevenueByClient(payments, clients);
+    expect(stats.entries[0]!.label).toBe("Ana Restrepo");
+    expect(JSON.stringify(stats.entries[0])).not.toContain("ana@example.com");
+    expect(JSON.stringify(stats.entries[0])).not.toContain("3000000000");
+  });
+
+  it("buildRevenueByPaymentType desglosa por los 4 valores reales de payment_type", () => {
+    const payments = [
+      makePayment({ id: "pay1", paymentType: "DEPOSIT", amount: 100, status: "APPROVED" }),
+      makePayment({ id: "pay2", paymentType: "MAINTENANCE", amount: 50, status: "APPROVED" }),
+      makePayment({ id: "pay3", paymentType: "DEPOSIT", amount: 999, status: "PENDING" }), // no cuenta
+    ];
+    const stats = buildRevenueByPaymentType(payments);
+    expect(stats.byType.DEPOSIT.COP).toBe(100);
+    expect(stats.byType.MAINTENANCE.COP).toBe(50);
+    expect(stats.byType.BALANCE).toEqual({});
+  });
+
+  it("array de pagos vacío → todas las entradas vacías, sin lanzar", () => {
+    expect(buildRevenueByProject([], []).entries).toEqual([]);
+    expect(buildRevenueByClient([], []).entries).toEqual([]);
+    expect(buildRevenueByPaymentType([]).byType.DEPOSIT).toEqual({});
+  });
+});
+
+describe("isLeadGeneratingConversation / buildAIConversationStats", () => {
+  it("exploring sin email → NO genera lead", () => {
+    expect(isLeadGeneratingConversation({ leadStatus: "exploring", visitorEmail: null })).toBe(false);
+  });
+
+  it("exploring CON email → SÍ genera lead", () => {
+    expect(isLeadGeneratingConversation({ leadStatus: "exploring", visitorEmail: "x@example.com" })).toBe(true);
+  });
+
+  it("interested sin email → SÍ genera lead (progresó más allá de exploring)", () => {
+    expect(isLeadGeneratingConversation({ leadStatus: "interested", visitorEmail: null })).toBe(true);
+  });
+
+  it("buildAIConversationStats cuenta mensajes y calcula la tasa de generación de leads en el período", () => {
+    const conversations = [
+      makeConversation({
+        id: "a",
+        createdAt: iso(1),
+        leadStatus: "interested",
+        messages: [
+          { role: "user", content: "hola", createdAt: iso(1) },
+          { role: "assistant", content: "hola!", createdAt: iso(1) },
+        ],
+      }),
+      makeConversation({ id: "b", createdAt: iso(1), leadStatus: "exploring", visitorEmail: null, messages: [] }),
+    ];
+    const stats = buildAIConversationStats(conversations, "7d", NOW);
+    expect(stats.leadGeneratingConversationsInPeriod).toBe(1);
+    expect(stats.leadGenerationRatePct).toBe(50);
+    expect(stats.totalMessagesInPeriod).toBe(2);
+    expect(stats.averageMessagesPerConversationInPeriod).toBe(1);
+  });
+
+  it("período sin conversaciones → todo null/0, nunca NaN", () => {
+    const stats = buildAIConversationStats([], "7d", NOW);
+    expect(stats.leadGeneratingConversationsInPeriod).toBe(0);
+    expect(stats.leadGenerationRatePct).toBeNull();
+    expect(stats.averageMessagesPerConversationInPeriod).toBeNull();
+  });
+});
+
+describe("buildMaintenanceStats", () => {
+  it("cuenta solicitudes por estado e ingresos de mantenimiento por separado", () => {
+    const requests = [
+      makeMaintenanceRequest({ id: "r1", status: "new" }),
+      makeMaintenanceRequest({ id: "r2", status: "new" }),
+      makeMaintenanceRequest({ id: "r3", status: "contacted" }),
+      makeMaintenanceRequest({ id: "r4", status: "resolved" }),
+    ];
+    const payments = [
+      makePayment({ id: "pay1", paymentType: "MAINTENANCE", amount: 80_000, status: "APPROVED" }),
+      makePayment({ id: "pay2", paymentType: "DEPOSIT", amount: 500_000, status: "APPROVED" }), // no cuenta aquí
+    ];
+    const stats = buildMaintenanceStats(requests, payments);
+    expect(stats.totalAllTime).toBe(4);
+    expect(stats.newCount).toBe(2);
+    expect(stats.contactedCount).toBe(1);
+    expect(stats.resolvedCount).toBe(1);
+    expect(stats.revenueByCurrency.COP).toBe(80_000);
+  });
+
+  it("sin solicitudes ni pagos → todo en 0/vacío, sin lanzar", () => {
+    const stats = buildMaintenanceStats([], []);
+    expect(stats.totalAllTime).toBe(0);
+    expect(stats.revenueByCurrency).toEqual({});
   });
 });

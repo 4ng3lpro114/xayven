@@ -1,5 +1,5 @@
 import type { LeadStatus } from "@/lib/db/types";
-import type { PaymentStatus } from "@/lib/payments/types";
+import type { PaymentStatus, PaymentType, ProjectStatus } from "@/lib/payments/types";
 
 /**
  * Statistics domain types (Fase 7B) — see src/lib/statistics/aggregate.ts
@@ -51,6 +51,12 @@ export interface ClientsStats {
 
 export interface ProjectsStats {
   totalAllTime: number;
+  /** Fase 10 — projects whose createdAt falls inside the selected period.
+   *  Everything else on this interface stays deliberately all-time (see
+   *  the original Fase 7B reasoning below); this one field is the
+   *  exception because "proyectos creados" is explicitly a Resumen
+   *  Ejecutivo card that must respect the period selector. */
+  newInPeriod: number;
   byStage: Record<ProjectWorkStage, number>;
   /** sum(total_amount) across ALL projects ever created — "lo que hemos
    *  contratado", not "lo que hemos cobrado". */
@@ -150,6 +156,26 @@ export interface NewClientsTimeSeries {
   points: TimeSeriesPoint[];
 }
 
+/**
+ * Fase 10 — the ONE resumen-level extension to ConversionStats: conversions
+ * attributable to the selected period via `converted_at`. Deliberately its
+ * own type, not a field bolted onto ConversionStats, because the two have
+ * different honesty rules: ConversionStats is a pure all-time snapshot (no
+ * date involved at all), while this one is period-scoped AND must
+ * separately surface how many all-time conversions have NO date to place
+ * anywhere (converted_at IS NULL — pre-Fase-9B conversions). That count is
+ * never distributed into any period, never treated as "now".
+ */
+export interface ConversionPeriodStats {
+  /** Conversions whose converted_at falls inside the selected period. */
+  convertedInPeriod: number;
+  /** All-time, NOT period-scoped — conversions that happened before
+   *  converted_at existed (0004_conversations_converted_at.sql), so their
+   *  real date is genuinely unknown. Always surfaced, never silently
+   *  dropped from the historical total and never guessed at. */
+  unknownDateConversionsAllTime: number;
+}
+
 export interface StatisticsSnapshot {
   period: StatisticsPeriod;
   periodLabel: string;
@@ -161,6 +187,171 @@ export interface StatisticsSnapshot {
   revenuePeriod: RevenuePeriodStats;
   leads: LeadsStats;
   conversion: ConversionStats;
+  conversionPeriod: ConversionPeriodStats;
   revenueSeries: RevenueTimeSeries;
   newClientsSeries: NewClientsTimeSeries;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 10 — Analytics V2. Everything below is additive: new tab-scoped data
+// shapes, computed only when their tab is active (see page.tsx) — never
+// bundled into StatisticsSnapshot itself, which stays the Resumen tab's
+// shape. Same MoneyByCurrency/empty-state/no-invented-data discipline
+// throughout.
+// ---------------------------------------------------------------------------
+
+// ---- Funnel ---------------------------------------------------------------
+
+export type FunnelStageKey = "conversations" | "exploring" | "interested" | "hot" | "client";
+
+export interface FunnelStagePoint {
+  key: FunnelStageKey;
+  label: string;
+  /** Cumulative "reach" — conversations at this stage or beyond. This is
+   *  the number the bar width/funnel shape is driven by. See the doc
+   *  comment on buildFunnelSnapshot() in aggregate.ts. */
+  count: number;
+  /** The OTHER number (Fase 10, opción 3 aprobada): conversations whose
+   *  `lead_status` is literally this exact value right now — the same raw,
+   *  non-cumulative count already shown in the Leads tab's "Por estado"
+   *  pills (never a different definition, never recomputed differently).
+   *  For "conversations" and "client" this always equals `count` by
+   *  construction (there's nothing "beyond" client, and every conversation
+   *  is definitionally at least at "conversations") — shown anyway, for
+   *  every stage, per explicit instruction; it's simply uninformative
+   *  there, never wrong. */
+  exactCount: number;
+  /** null for the first stage (no previous stage to compare against). */
+  pctOfPrevious: number | null;
+  /** null when the top-of-funnel count is 0 — never a division by zero. */
+  pctOfTotal: number | null;
+}
+
+export interface FunnelSnapshot {
+  stages: FunnelStagePoint[];
+  /** Conversations currently in "support" — deliberately excluded from
+   *  the funnel/drop-off math above (support isn't a commercial pipeline
+   *  stage), shown separately so the count isn't lost. */
+  supportCount: number;
+}
+
+export interface FunnelEvolutionSeries {
+  bucket: StatisticsBucket;
+  reachedInterested: TimeSeriesPoint[];
+  reachedHot: TimeSeriesPoint[];
+  reachedClient: TimeSeriesPoint[];
+  /** False when lead_status_history has zero rows in the selected period
+   *  — in practice, zero rows at all today (deployed 2026-08-12, no
+   *  backfill). Drives an explicit "el historial empezará a aparecer..."
+   *  empty state — never a flat zero-line chart implying past activity
+   *  that was never recorded. */
+  hasData: boolean;
+}
+
+export interface FunnelStats {
+  snapshot: FunnelSnapshot;
+  evolution: FunnelEvolutionSeries;
+}
+
+// ---- Additional time series -------------------------------------------
+
+export interface LeadsTimeSeries {
+  bucket: StatisticsBucket;
+  points: TimeSeriesPoint[];
+}
+
+export interface ProjectsTimeSeries {
+  bucket: StatisticsBucket;
+  points: TimeSeriesPoint[];
+}
+
+export interface ConversionsTimeSeries {
+  bucket: StatisticsBucket;
+  /** Only conversions with a known converted_at — see
+   *  unknownDateConversionsAllTime for what's deliberately NOT here. */
+  points: TimeSeriesPoint[];
+  unknownDateConversionsAllTime: number;
+}
+
+// ---- Clients (extended) ----------------------------------------------
+
+export interface ClientsExtendedStats {
+  withProjectsCount: number;
+  /** Clients with more than one project — see ClientSummary.projectsCount
+   *  (src/lib/clients/summary.ts), already computed per client. */
+  recurringCount: number;
+  /** Sum of every client's ClientSummary.paidAmount, by currency. Never
+   *  attaches a name/email here — per-client PII stays on
+   *  /admin/clients/[id]. */
+  totalPaidByCurrency: MoneyByCurrency;
+}
+
+// ---- Projects (extended) -----------------------------------------------
+
+/** The real 9 ProjectStatus values, unlike ProjectsStats.byStage's 4-bucket
+ *  grouping — an optional, more granular view (see projectStages.ts for
+ *  why "active"/"in_progress"/"review"/"maintenance" all fold into a
+ *  single "in_progress" bucket normally). */
+export type ProjectRawStatusBreakdown = Record<ProjectStatus, number>;
+
+// ---- Finance breakdowns -------------------------------------------------
+
+export interface RevenueByGroupEntry {
+  id: string;
+  label: string;
+  amountsByCurrency: MoneyByCurrency;
+}
+
+export interface RevenueByProjectStats {
+  entries: RevenueByGroupEntry[];
+}
+
+/** `label` is the client's name — necessary for the ranking to be
+ *  meaningful to the admin, never email/phone (those stay on
+ *  /admin/clients/[id], which each entry's `id` links to). */
+export interface RevenueByClientStats {
+  entries: RevenueByGroupEntry[];
+}
+
+export interface RevenueByPaymentTypeStats {
+  byType: Record<PaymentType, MoneyByCurrency>;
+}
+
+// ---- AI / Conversaciones -------------------------------------------------
+
+export const PAYMENT_TYPE_LABELS_ES: Record<PaymentType, string> = {
+  DEPOSIT: "Depósito",
+  BALANCE: "Saldo",
+  FULL_PAYMENT: "Pago completo",
+  MAINTENANCE: "Mantenimiento",
+};
+
+export interface AIConversationStats {
+  /**
+   * Fase 10 explicit rule for "conversación que genera un lead" (no
+   * official definition existed anywhere in the project before this): a
+   * conversation counts as lead-generating if it progressed past pure
+   * "exploring" (leadStatus !== 'exploring') OR the visitor left a real
+   * email — either signal already drives leadScore/leadStatus elsewhere
+   * (src/lib/ai/conversation.ts), so this reuses existing meaning rather
+   * than inventing a new one. Never "any conversation counts".
+   */
+  leadGeneratingConversationsInPeriod: number;
+  leadGenerationRatePct: number | null;
+  totalMessagesInPeriod: number;
+  averageMessagesPerConversationInPeriod: number | null;
+}
+
+// ---- Mantenimiento ---------------------------------------------------
+
+export interface MaintenanceStats {
+  totalAllTime: number;
+  newCount: number;
+  contactedCount: number;
+  resolvedCount: number;
+  /** payments WHERE payment_type = 'MAINTENANCE' AND status = 'APPROVED',
+   *  all-time. Never a plan/price figure — no pricing model exists (see
+   *  the Fase 10 Etapa 1 audit); Essential/Growth/Care+ are deliberately
+   *  out of scope here. */
+  revenueByCurrency: MoneyByCurrency;
 }
