@@ -6,6 +6,7 @@ import {
   listContactRequests,
   updateContactRequestStatus,
   linkContactRequestToClient,
+  deleteContactRequest,
   ContactRequestNotFoundError,
 } from "@/lib/db/contactRequestStore";
 
@@ -157,5 +158,53 @@ describe("linkContactRequestToClient — la única forma de llegar a 'converted'
     await expect(
       linkContactRequestToClient("00000000-0000-0000-0000-000000000000", randomUUID(), true)
     ).rejects.toThrow(ContactRequestNotFoundError);
+  });
+});
+
+describe("deleteContactRequest", () => {
+  it("borra una solicitud existente — deleted: true, y ya no es encontrable después", async () => {
+    const created = await createContactRequest(makeInput());
+
+    const result = await deleteContactRequest(created.id);
+
+    expect(result.deleted).toBe(true);
+    expect(await getContactRequestById(created.id)).toBeNull();
+  });
+
+  it("un id inexistente → deleted: false, sin lanzar", async () => {
+    const result = await deleteContactRequest("00000000-0000-0000-0000-000000000000");
+    expect(result.deleted).toBe(false);
+  });
+
+  it("borrar dos veces la misma solicitud → la segunda vez deleted: false", async () => {
+    const created = await createContactRequest(makeInput());
+
+    const first = await deleteContactRequest(created.id);
+    const second = await deleteContactRequest(created.id);
+
+    expect(first.deleted).toBe(true);
+    expect(second.deleted).toBe(false);
+  });
+
+  it("ya no aparece en listContactRequests() después de borrarla", async () => {
+    const created = await createContactRequest(makeInput());
+    await deleteContactRequest(created.id);
+
+    const all = await listContactRequests({ limit: 1000 });
+    expect(all.some((r) => r.id === created.id)).toBe(false);
+  });
+
+  it("borrar una solicitud convertida (status/client_id/client_was_created) elimina únicamente la fila de contact_requests", async () => {
+    const created = await createContactRequest(makeInput());
+    const clientId = randomUUID();
+    await linkContactRequestToClient(created.id, clientId, true);
+
+    const result = await deleteContactRequest(created.id);
+
+    expect(result.deleted).toBe(true);
+    expect(await getContactRequestById(created.id)).toBeNull();
+    // deleteContactRequest() no tiene forma de tocar `clients` — el FK va
+    // en la otra dirección (contact_requests.client_id -> clients.id).
+    // No hay ninguna llamada a paymentsStore en su implementación.
   });
 });

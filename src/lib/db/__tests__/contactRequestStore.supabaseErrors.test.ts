@@ -74,3 +74,32 @@ describe("createContactRequest — error real de Supabase (mockeado)", () => {
     vi.resetModules();
   });
 });
+
+function makeFakeSupabaseForDelete(result: { error: { code?: string; message?: string } | null }) {
+  return {
+    from: () => ({
+      delete: () => ({
+        eq: async () => result,
+      }),
+    }),
+  };
+}
+
+describe("deleteContactRequest — error real de Supabase (mockeado)", () => {
+  it("Supabase configurado pero el delete falla → lanza, nunca finge éxito", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/db/supabase", () => ({
+      getSupabaseAdmin: () =>
+        makeFakeSupabaseForDelete({ error: { code: "08006", message: "connection failure" } }),
+    }));
+
+    const { deleteContactRequest } = await import("@/lib/db/contactRequestStore");
+
+    await expect(deleteContactRequest("00000000-0000-0000-0000-000000000000")).rejects.toThrow(
+      /deleteContactRequest failed/
+    );
+
+    vi.doUnmock("@/lib/db/supabase");
+    vi.resetModules();
+  });
+});

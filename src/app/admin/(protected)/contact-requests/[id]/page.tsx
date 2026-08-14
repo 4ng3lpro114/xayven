@@ -10,6 +10,7 @@ import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStat
 import {
   ContactRequestStatusActions,
   ContactRequestConvertClientButton,
+  ContactRequestDeleteButton,
 } from "@/components/admin/ContactRequestActions";
 
 export const dynamic = "force-dynamic";
@@ -108,6 +109,16 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
             label="Agregar cliente nuevamente"
           />
         )}
+      </div>
+
+      {/* "Eliminar solicitud" — separado del resto de acciones por ser
+         destructivo, mismo patrón visual de dos pasos (armar → confirmar)
+         que ClientActions/ConversationActions. Siempre disponible,
+         independientemente del estado: borrar la solicitud nunca toca al
+         cliente vinculado (si existe) — ver el doc comment de la ruta
+         DELETE correspondiente. */}
+      <div className="mt-4">
+        <ContactRequestDeleteButton contactRequestId={request.id} />
       </div>
 
       {/* Caso B: convertida y el cliente sigue existiendo. El encabezado

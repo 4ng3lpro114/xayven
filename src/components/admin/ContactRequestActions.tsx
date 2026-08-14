@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ContactRequest } from "@/lib/db/types";
 
@@ -213,6 +213,123 @@ export function ContactRequestConvertClientButton({
         {label}
       </button>
       {error && <p className="text-xs text-error">{error}</p>}
+    </div>
+  );
+}
+
+export type DeleteContactRequestErrorCode = "not_found" | "unauthorized" | "generic";
+
+export type DeleteContactRequestOutcome =
+  | { status: "success" }
+  | { status: "error"; code: DeleteContactRequestErrorCode };
+
+/**
+ * "Eliminar solicitud" — same dependency-injectable, unit-testable shape
+ * as requestDeleteClient()/requestDeleteConversation(). No protection
+ * codes to map here (unlike those two): deleting a contact request is
+ * always allowed, regardless of status/client_id — see DELETE
+ * /api/admin/contact-requests/[id]'s doc comment for why.
+ */
+export async function requestDeleteContactRequest(
+  contactRequestId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<DeleteContactRequestOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`/api/admin/contact-requests/${contactRequestId}`, { method: "DELETE" });
+  } catch {
+    return { status: "error", code: "generic" };
+  }
+
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean };
+
+  if (res.ok && body.ok) return { status: "success" };
+  if (res.status === 401) return { status: "error", code: "unauthorized" };
+  if (res.status === 404) return { status: "error", code: "not_found" };
+  return { status: "error", code: "generic" };
+}
+
+const DELETE_ERROR_MESSAGES: Record<DeleteContactRequestErrorCode, string> = {
+  not_found: "Esta solicitud ya no existe.",
+  unauthorized: "Tu sesión expiró — recarga la página e inicia sesión de nuevo.",
+  generic: "No pudimos eliminar la solicitud. Intenta de nuevo.",
+};
+
+/**
+ * Same "arm then confirm" two-click pattern as ClientActions/
+ * ConversationActions' delete buttons — nothing is deleted on the first
+ * click, only on the second, explicit one. Deleting the request never
+ * touches its linked client (if any) — see the route's doc comment; no
+ * client-related warning is ever needed here.
+ */
+export function ContactRequestDeleteButton({ contactRequestId }: { contactRequestId: string }) {
+  const router = useRouter();
+  const [armed, setArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleClick() {
+    if (deleting) return;
+    if (!armed) {
+      // First click only arms the confirmation — nothing is deleted yet.
+      setArmed(true);
+      setError(null);
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    const outcome = await requestDeleteContactRequest(contactRequestId);
+
+    if (outcome.status === "success") {
+      router.push("/admin/contact-requests");
+      return;
+    }
+
+    setError(DELETE_ERROR_MESSAGES[outcome.code]);
+    setArmed(false);
+    setDeleting(false);
+  }
+
+  return (
+    <div>
+      {armed && !deleting && (
+        <p className="mb-2 max-w-md text-xs text-error">
+          ¿Eliminar esta solicitud? Esta acción eliminará permanentemente la solicitud y no se puede
+          deshacer.
+        </p>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={deleting}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors disabled:cursor-default disabled:opacity-50",
+            armed
+              ? "border-error/40 bg-error/10 text-error hover:bg-error/20"
+              : "border-border-strong bg-bg-raised text-fg-muted hover:border-border-accent hover:text-fg"
+          )}
+        >
+          {deleting ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Trash2 className="size-4" aria-hidden="true" />
+          )}
+          {armed ? "Confirmar eliminación" : "Eliminar solicitud"}
+        </button>
+        {armed && !deleting && (
+          <button
+            type="button"
+            onClick={() => setArmed(false)}
+            className="text-xs text-fg-subtle underline transition-colors hover:text-fg-muted"
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
+      {error && <p className="mt-2 text-xs text-error">{error}</p>}
     </div>
   );
 }

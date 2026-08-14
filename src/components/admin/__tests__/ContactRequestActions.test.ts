@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   requestContactRequestStatusChange,
   requestConvertContactRequestToClient,
+  requestDeleteContactRequest,
 } from "../ContactRequestActions";
 
 // Same isolated-from-rendering pattern as ConversationActions.test.ts —
@@ -95,6 +96,43 @@ describe("requestConvertContactRequestToClient", () => {
       })
     );
     const outcome = await requestConvertContactRequestToClient("req-1");
+    expect(outcome).toEqual({ status: "error", code: "generic" });
+  });
+});
+
+describe("requestDeleteContactRequest", () => {
+  it("éxito → status success", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const outcome = await requestDeleteContactRequest("req-1");
+
+    expect(outcome).toEqual({ status: "success" });
+    // Confirma el método/endpoint exactos — DELETE contra la ruta admin,
+    // nunca una llamada directa a Supabase desde el navegador.
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/contact-requests/req-1", { method: "DELETE" });
+  });
+
+  it("401 → unauthorized", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ ok: false }, 401)));
+    const outcome = await requestDeleteContactRequest("req-1");
+    expect(outcome).toEqual({ status: "error", code: "unauthorized" });
+  });
+
+  it("404 → not_found", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ ok: false }, 404)));
+    const outcome = await requestDeleteContactRequest("req-1");
+    expect(outcome).toEqual({ status: "error", code: "not_found" });
+  });
+
+  it("error de red → generic", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      })
+    );
+    const outcome = await requestDeleteContactRequest("req-1");
     expect(outcome).toEqual({ status: "error", code: "generic" });
   });
 });

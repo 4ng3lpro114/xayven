@@ -254,3 +254,38 @@ export function nullifyClientIdInContactRequestsMemory(clientId: string): void {
     }
   }
 }
+
+/**
+ * Permanent deletion of a contact request — mirrors
+ * conversationStore.ts's deleteConversation() exactly (same "never fall
+ * back to memory on a real Supabase error" discipline, same `{ deleted }`
+ * shape). Unlike deleteConversation()/deleteClient(), there is no
+ * protection check here and none is needed: `contact_requests.client_id`
+ * is a child reference INTO `clients` (`contact_requests.client_id ->
+ * clients.id`), never the other way around, so deleting a contact request
+ * row can never cascade into — or otherwise touch — `clients`,
+ * `projects`, `payments`, or `conversations`. This is the ONLY sanctioned
+ * way to delete a contact request; the DELETE
+ * /api/admin/contact-requests/[id] route never issues raw SQL/Supabase
+ * calls of its own.
+ */
+export async function deleteContactRequest(id: string): Promise<{ deleted: boolean }> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return { deleted: memoryStore.delete(id) };
+  }
+
+  const { error, count } = await supabase
+    .from("contact_requests")
+    .delete({ count: "exact" })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(
+      `[contact-requests] deleteContactRequest failed: ${error.code ?? "unknown"} ${error.message ?? ""}`
+    );
+  }
+
+  return { deleted: (count ?? 0) > 0 };
+}
