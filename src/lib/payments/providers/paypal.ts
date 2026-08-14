@@ -224,6 +224,45 @@ export class PayPalProvider implements PaymentProvider {
   }
 
   /**
+   * Re-checks a previously created order and hands back its approve link
+   * if it's still something the buyer can act on — used by service.ts to
+   * avoid creating a new PayPal Order on every page render/refresh/retry.
+   * Only ever takes an order id we already persisted ourselves; no
+   * amount/currency involved at all, since those were fixed at
+   * order-creation time and PayPal itself is the source of truth for
+   * whether this specific order is still open.
+   *
+   * Reuses `mapPayPalStatus` — the exact same statuses this file already
+   * treats as "not yet final" (CREATED/SAVED/APPROVED/
+   * PAYER_ACTION_REQUIRED → our PENDING) are the only ones considered
+   * resumable here, so there's a single source of truth for that
+   * classification. Anything terminal (COMPLETED/VOIDED/DECLINED), not
+   * found, or unreachable falls through to `null` — the caller creates a
+   * fresh order instead, exactly like before this method existed.
+   */
+  async resumeCheckout(orderId: string): Promise<CheckoutResult | null> {
+    if (!this.isConfigured()) return null;
+
+    let res: Response;
+    try {
+      res = await paypalFetch(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, {
+        method: "GET",
+      });
+    } catch {
+      return null;
+    }
+    if (!res.ok) return null;
+
+    const order = (await res.json()) as PayPalOrderResponse;
+    if (mapPayPalStatus(order.status) !== "PENDING") return null;
+
+    const approveLink = order.links?.find((l) => l.rel === "approve")?.href;
+    if (!approveLink) return null;
+
+    return { mode: "redirect", url: approveLink, providerTransactionId: order.id };
+  }
+
+  /**
    * Captures an approved order — the moment PayPal actually moves money.
    * Called only from the server (return page / capture route), never in
    * response to a bare client claim of success. Safe to call twice: PayPal

@@ -109,6 +109,11 @@ export async function initiateProjectPayment(params: {
     `${params.siteUrl}/${params.locale}/portal/${params.project.portalToken}/return` +
     `?paymentId=${payment.id}`;
 
+  const resumed = await tryResumeCheckout(providerImpl, payment);
+  if (resumed) {
+    return { payment, checkout: resumed };
+  }
+
   const checkout = await providerImpl.createCheckout({
     payment,
     project: params.project,
@@ -117,7 +122,7 @@ export async function initiateProjectPayment(params: {
     locale: params.locale,
   });
 
-  const linkedPayment = await persistProviderTransactionId(payment, checkout);
+  const linkedPayment = await syncProviderTransactionId(payment, checkout);
   return { payment: linkedPayment, checkout };
 }
 
@@ -172,6 +177,11 @@ export async function buildCheckoutForExistingPayment(params: {
     `${params.siteUrl}/${params.locale}/portal/${params.project.portalToken}/return` +
     `?paymentId=${params.payment.id}`;
 
+  const resumed = await tryResumeCheckout(providerImpl, params.payment);
+  if (resumed) {
+    return resumed;
+  }
+
   const checkout = await providerImpl.createCheckout({
     payment: params.payment,
     project: params.project,
@@ -180,15 +190,49 @@ export async function buildCheckoutForExistingPayment(params: {
     locale: params.locale,
   });
 
-  await persistProviderTransactionId(params.payment, checkout);
+  await syncProviderTransactionId(params.payment, checkout);
   return checkout;
 }
 
-async function persistProviderTransactionId(
+/**
+ * Shared by initiateProjectPayment and buildCheckoutForExistingPayment:
+ * when the Payment already has a providerTransactionId from an earlier
+ * checkout attempt (a previous render, an abandoned/retried flow), asks
+ * the provider — if it supports resumability — whether that transaction is
+ * still something the buyer can act on. Only PayPal implements this today
+ * (see providers/paypal.ts `resumeCheckout`); Wompi/Wise simply don't have
+ * the method, so `providerImpl.resumeCheckout` is undefined and this is a
+ * no-op for them, same as before this existed.
+ */
+async function tryResumeCheckout(
+  providerImpl: { resumeCheckout?: (transactionId: string) => Promise<CheckoutResult | null> },
+  payment: Payment
+): Promise<CheckoutResult | null> {
+  if (!payment.providerTransactionId || !providerImpl.resumeCheckout) {
+    return null;
+  }
+  return providerImpl.resumeCheckout(payment.providerTransactionId);
+}
+
+/**
+ * Persists the provider's transaction id onto the Payment row whenever a
+ * NEW checkout was actually created (never called for a resumed one — see
+ * tryResumeCheckout above). Unlike the old persistProviderTransactionId,
+ * this always syncs to the latest id — a payment that already had one from
+ * an earlier, now-unusable attempt must not stay pinned to it, or a
+ * strict-lookup consumer (e.g. a future direct-capture-by-id caller) would
+ * search for the wrong order. Still only ever touches "redirect" mode
+ * checkouts with a real id — Wompi's "widget" mode and Wise's "manual" mode
+ * are untouched by this function, exactly as before.
+ */
+async function syncProviderTransactionId(
   payment: Payment,
   checkout: CheckoutResult
 ): Promise<Payment> {
-  if (checkout.mode !== "redirect" || !checkout.providerTransactionId || payment.providerTransactionId) {
+  if (checkout.mode !== "redirect" || !checkout.providerTransactionId) {
+    return payment;
+  }
+  if (payment.providerTransactionId === checkout.providerTransactionId) {
     return payment;
   }
   const updated = await updatePayment(payment.id, {

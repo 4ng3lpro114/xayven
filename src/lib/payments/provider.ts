@@ -81,6 +81,22 @@ export interface PaymentProvider {
    * the (signature-verified) event body itself.
    */
   fetchTransactionStatus(transactionId: string): Promise<ProviderTransactionStatus | null>;
+
+  /**
+   * Optional: re-checks a previously created (but not yet completed)
+   * checkout and hands back the same one if it's still safe to send the
+   * buyer to, instead of creating a brand-new remote resource. Only
+   * meaningful for providers whose `createCheckout` calls out to a remote
+   * API to create something stateful (PayPal's Order) — providers like
+   * Wompi (a local signature, no remote object) or Wise (no online
+   * checkout at all) simply don't implement this, and callers must treat
+   * its absence the same as a `null` result: fall back to `createCheckout`.
+   *
+   * Must never accept or derive amount/currency from anything but the
+   * provider's own record of the existing transaction — this only ever
+   * takes the transaction id we already persisted ourselves.
+   */
+  resumeCheckout?(transactionId: string): Promise<CheckoutResult | null>;
 }
 
 export class ProviderNotConfiguredError extends Error {
