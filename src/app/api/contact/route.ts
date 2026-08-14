@@ -57,8 +57,9 @@ export async function POST(request: NextRequest) {
 
   logContactEvent("CONTACT_RECEIVED", { email: data.email });
 
+  let contactRequest: Awaited<ReturnType<typeof createContactRequest>>;
   try {
-    await createContactRequest({
+    contactRequest = await createContactRequest({
       name: data.name,
       email: data.email,
       company: data.company ? data.company : null,
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
           `Empresa: ${data.company || "—"}`,
           `Tipo de proyecto: ${data.projectType}`,
           `Presupuesto: ${data.budget}`,
+          `Fecha/hora de recepción: ${new Date(contactRequest.createdAt).toLocaleString("es-CO")}`,
           "",
           "Mensaje:",
           data.message,
