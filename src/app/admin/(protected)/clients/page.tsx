@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listClients, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
+import { listContactRequests } from "@/lib/db/contactRequestStore";
 import { buildClientSummaries, type ClientSummary } from "@/lib/clients/summary";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
 import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
@@ -78,14 +79,17 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
   const { q = "", filter = "all" } = await searchParams;
   const activeFilter = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]!;
 
-  const [clients, conversations, projects, payments] = await Promise.all([
+  const [clients, conversations, projects, payments, contactRequests] = await Promise.all([
     listClients(),
     listConversations({ limit: AGGREGATION_LIMIT }),
     listProjects(),
     listPayments({ limit: AGGREGATION_LIMIT }),
+    // Only "converted" is relevant for deriving Estado="Cliente" below —
+    // same reasoning as the other bulk fetches above (Fase 5C Etapa 12).
+    listContactRequests({ status: "converted", limit: AGGREGATION_LIMIT }),
   ]);
 
-  const summaries = buildClientSummaries({ clients, conversations, projects, payments });
+  const summaries = buildClientSummaries({ clients, conversations, projects, payments, contactRequests });
 
   const needle = q.trim().toLowerCase();
   const visibleClients = clients.filter((c) => {

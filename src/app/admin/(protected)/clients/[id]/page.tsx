@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Plus } from "lucide-react";
 import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
+import { listContactRequests } from "@/lib/db/contactRequestStore";
 import { buildClientSummaries } from "@/lib/clients/summary";
 import { buildActivityFeed } from "@/lib/clients/activity";
 import { getClientProtectionReason } from "@/lib/clients/importance";
@@ -41,17 +42,23 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
   const client = await getClientById(id);
   if (!client) notFound();
 
-  const [conversations, projects, payments] = await Promise.all([
+  const [conversations, projects, payments, convertedContactRequests] = await Promise.all([
     listConversations({ clientId: client.id, limit: RELATIONS_LIMIT }),
     listProjects({ clientId: client.id }),
     listPayments({ clientId: client.id, limit: RELATIONS_LIMIT }),
+    // listContactRequests() has no clientId filter — same bulk-fetch +
+    // in-memory-filter technique as the rest of this codebase (Fase 5C
+    // Etapa 12). Only "converted" is relevant for Estado="Cliente" below.
+    listContactRequests({ status: "converted", limit: RELATIONS_LIMIT }),
   ]);
+  const contactRequests = convertedContactRequests.filter((r) => r.clientId === client.id);
 
   const summary = buildClientSummaries({
     clients: [client],
     conversations,
     projects,
     payments,
+    contactRequests,
   }).get(client.id)!;
 
   const activityFeed = buildActivityFeed({ conversations, projects, payments }).slice(

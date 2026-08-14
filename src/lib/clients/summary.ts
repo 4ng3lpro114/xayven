@@ -1,4 +1,4 @@
-import type { Conversation, LeadStatus } from "@/lib/db/types";
+import type { Conversation, ContactRequest, LeadStatus } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
 import { pendingAmount as computePendingAmount } from "@/lib/payments/types";
 import { classifyClientImportance, type ClientImportance } from "@/lib/clients/importance";
@@ -32,7 +32,14 @@ export interface ClientSummary {
   latestActivity: string | null;
   /** From the client's most recently *updated* conversation — see the
    *  "most recent wins" criterion documented on pickRelevantConversation
-   *  below. Null if the client has no conversations. */
+   *  below. Falls back to "client" when the client has no conversation at
+   *  all but WAS reached through a converted Solicitud ("Agregar
+   *  cliente") — see the `contactRequests` param below. Still null only
+   *  when neither signal exists. This never writes anything anywhere
+   *  (still no second status system — conversations.lead_status and
+   *  lead_status_history are untouched); it's purely a read-time fallback
+   *  in this one aggregation function so both conversion paths render the
+   *  same "Cliente" badge. */
   leadStatus: LeadStatus | null;
   leadScore: number | null;
   hasProjects: boolean;
@@ -78,6 +85,13 @@ export function buildClientSummaries(params: {
   conversations: Conversation[];
   projects: Project[];
   payments: Payment[];
+  /**
+   * Optional — omitted callers (existing tests, statistics/aggregate.ts)
+   * keep today's exact behavior (leadStatus derived only from
+   * conversations). Only requests with status "converted" and a real
+   * clientId contribute; see `convertedContactRequestClientIds` below.
+   */
+  contactRequests?: ContactRequest[];
 }): Map<string, ClientSummary> {
   const conversationsByClient = groupById(
     params.conversations.filter((c) => c.clientId !== null),
@@ -85,6 +99,21 @@ export function buildClientSummaries(params: {
   );
   const projectsByClient = groupById(params.projects, (p) => p.clientId);
   const paymentsByClient = groupById(params.payments, (p) => p.clientId);
+
+  // Solicitud → Cliente never creates/touches a conversation, so a client
+  // reached only through that path has no relevantConversation and would
+  // otherwise render "—" in the Estado column while a Conversación →
+  // Cliente client of equal standing shows "Cliente" — same underlying
+  // fact ("this person is a client"), just discovered through a
+  // different intake channel. This is read-only: it doesn't write to
+  // conversations.lead_status or lead_status_history (changeLeadStatus()
+  // remains the only writer of both, untouched), it's just a second valid
+  // signal this one aggregation function already knows how to read.
+  const convertedContactRequestClientIds = new Set(
+    (params.contactRequests ?? [])
+      .filter((r) => r.status === "converted" && r.clientId !== null)
+      .map((r) => r.clientId!)
+  );
 
   const summaries = new Map<string, ClientSummary>();
 
@@ -111,9 +140,12 @@ export function buildClientSummaries(params: {
     const hasProjects = clientProjects.length > 0;
     const hasPayments = clientPayments.length > 0;
 
+    const leadStatus: LeadStatus | null =
+      relevantConversation?.leadStatus ?? (convertedContactRequestClientIds.has(client.id) ? "client" : null);
+
     const importance = classifyClientImportance({
       leadScore: relevantConversation?.leadScore ?? null,
-      leadStatus: relevantConversation?.leadStatus ?? null,
+      leadStatus,
       projects: clientProjects,
       hasPayments,
     });
@@ -125,7 +157,7 @@ export function buildClientSummaries(params: {
       paidAmount,
       pendingAmount,
       latestActivity,
-      leadStatus: relevantConversation?.leadStatus ?? null,
+      leadStatus,
       leadScore: relevantConversation?.leadScore ?? null,
       hasProjects,
       hasPayments,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildClientSummaries } from "@/lib/clients/summary";
-import type { Conversation } from "@/lib/db/types";
+import type { Conversation, ContactRequest } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
 
 function makeClient(overrides: Partial<Client> = {}): Client {
@@ -57,6 +57,23 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     totalAmount: 1000000,
     paidAmount: 0,
     portalToken: "token-1",
+    ...overrides,
+  };
+}
+
+function makeContactRequest(overrides: Partial<ContactRequest> = {}): ContactRequest {
+  return {
+    id: "request-1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    name: "Diana",
+    email: "diana@example.com",
+    company: null,
+    projectType: "Sitio web nuevo",
+    budget: "Menos de $1.000.000 COP",
+    message: "Necesito ayuda con mi proyecto.",
+    status: "converted",
+    clientId: "client-1",
+    clientWasCreated: true,
     ...overrides,
   };
 }
@@ -195,5 +212,75 @@ describe("buildClientSummaries", () => {
     });
 
     expect(summaries.get("client-1")!.conversationsCount).toBe(0);
+  });
+});
+
+describe("buildClientSummaries — leadStatus derivado de Solicitud → Cliente (contactRequests)", () => {
+  it("omitir contactRequests conserva el comportamiento exacto de siempre (leadStatus null sin conversación)", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+    });
+    expect(summaries.get("client-1")!.leadStatus).toBeNull();
+  });
+
+  it("cliente sin conversación pero con una solicitud convertida → leadStatus 'client'", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      contactRequests: [makeContactRequest()],
+    });
+    expect(summaries.get("client-1")!.leadStatus).toBe("client");
+  });
+
+  it("solicitud NO convertida (status='new'/'contacted') → no influye, leadStatus sigue null", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      contactRequests: [makeContactRequest({ status: "new", clientId: null })],
+    });
+    expect(summaries.get("client-1")!.leadStatus).toBeNull();
+  });
+
+  it("solicitud convertida de OTRO cliente no se filtra hacia este cliente", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient({ id: "client-1" }), makeClient({ id: "client-2", email: "otro@example.com" })],
+      conversations: [],
+      projects: [],
+      payments: [],
+      contactRequests: [makeContactRequest({ clientId: "client-2" })],
+    });
+    expect(summaries.get("client-1")!.leadStatus).toBeNull();
+    expect(summaries.get("client-2")!.leadStatus).toBe("client");
+  });
+
+  it("si el cliente SÍ tiene una conversación real, esta sigue mandando sobre la solicitud convertida", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [makeConversation({ leadStatus: "hot" })],
+      projects: [],
+      payments: [],
+      contactRequests: [makeContactRequest()],
+    });
+    // La conversación real es la fuente primaria — no se sobrescribe con
+    // "client" solo porque también exista una solicitud convertida.
+    expect(summaries.get("client-1")!.leadStatus).toBe("hot");
+  });
+
+  it("no cambia importance por sí solo — un cliente 'client' vía solicitud sin pagos/proyectos sigue 'normal'", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      contactRequests: [makeContactRequest()],
+    });
+    expect(summaries.get("client-1")!.importance).toBe("normal");
   });
 });
