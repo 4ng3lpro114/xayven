@@ -49,7 +49,7 @@ describe("deleteClient", () => {
       budget: "Menos de $1.000.000 COP",
       message: "Necesito ayuda con mi proyecto.",
     });
-    await linkContactRequestToClient(request.id, client.id);
+    await linkContactRequestToClient(request.id, client.id, true);
 
     await deleteClient(client.id);
 
@@ -58,5 +58,8 @@ describe("deleteClient", () => {
     // El estado histórico NUNCA se revierte automáticamente — ver
     // nullifyClientIdInContactRequestsMemory()'s doc comment.
     expect(afterDelete?.status).toBe("converted");
+    // clientWasCreated tampoco se toca — es el hecho histórico de QUÉ pasó
+    // en la conversión original, no si el cliente sigue existiendo hoy.
+    expect(afterDelete?.clientWasCreated).toBe(true);
   });
 });

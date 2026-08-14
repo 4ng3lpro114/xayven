@@ -92,7 +92,7 @@ export async function convertContactRequestToClient(
     company: contactRequest.company,
   });
 
-  const updatedContactRequest = await linkContactRequestToClient(contactRequest.id, client.id);
+  const updatedContactRequest = await linkContactRequestToClient(contactRequest.id, client.id, created);
 
   return { client, contactRequest: updatedContactRequest, clientWasCreated: created };
 }

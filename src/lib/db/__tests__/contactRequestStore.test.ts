@@ -33,6 +33,7 @@ describe("createContactRequest / getContactRequestById", () => {
 
     expect(created.status).toBe("new");
     expect(created.clientId).toBeNull();
+    expect(created.clientWasCreated).toBeNull();
     expect(created.id).toBeTruthy();
     expect(created.createdAt).toBeTruthy();
 
@@ -68,7 +69,7 @@ describe("listContactRequests", () => {
 
   it("filtra por status, incluyendo 'converted'", async () => {
     const created = await createContactRequest(makeInput());
-    await linkContactRequestToClient(created.id, randomUUID());
+    await linkContactRequestToClient(created.id, randomUUID(), true);
 
     const converted = await listContactRequests({ status: "converted" });
     expect(converted.some((r) => r.id === created.id)).toBe(true);
@@ -117,19 +118,34 @@ describe("updateContactRequestStatus (solo new ⇄ contacted)", () => {
 });
 
 describe("linkContactRequestToClient — la única forma de llegar a 'converted'", () => {
-  it("fija status='converted' y clientId en la misma escritura", async () => {
+  it("fija status='converted', clientId y clientWasCreated en la misma escritura", async () => {
     const created = await createContactRequest(makeInput());
     const clientId = randomUUID();
 
-    const linked = await linkContactRequestToClient(created.id, clientId);
+    const linked = await linkContactRequestToClient(created.id, clientId, true);
     expect(linked.status).toBe("converted");
     expect(linked.clientId).toBe(clientId);
+    expect(linked.clientWasCreated).toBe(true);
+  });
+
+  it("persiste clientWasCreated=false cuando se reutilizó un cliente existente", async () => {
+    const created = await createContactRequest(makeInput());
+    const linked = await linkContactRequestToClient(created.id, randomUUID(), false);
+    expect(linked.clientWasCreated).toBe(false);
+  });
+
+  it("clientWasCreated sobrevive a un reload (getContactRequestById devuelve el mismo valor)", async () => {
+    const created = await createContactRequest(makeInput());
+    await linkContactRequestToClient(created.id, randomUUID(), false);
+
+    const reloaded = await getContactRequestById(created.id);
+    expect(reloaded?.clientWasCreated).toBe(false);
   });
 
   it("nunca pierde los datos originales de la solicitud (permanece como historial)", async () => {
     const input = makeInput();
     const created = await createContactRequest(input);
-    const linked = await linkContactRequestToClient(created.id, randomUUID());
+    const linked = await linkContactRequestToClient(created.id, randomUUID(), true);
 
     expect(linked.name).toBe(input.name);
     expect(linked.email).toBe(input.email);
@@ -139,7 +155,7 @@ describe("linkContactRequestToClient — la única forma de llegar a 'converted'
 
   it("id inexistente → lanza ContactRequestNotFoundError", async () => {
     await expect(
-      linkContactRequestToClient("00000000-0000-0000-0000-000000000000", randomUUID())
+      linkContactRequestToClient("00000000-0000-0000-0000-000000000000", randomUUID(), true)
     ).rejects.toThrow(ContactRequestNotFoundError);
   });
 });

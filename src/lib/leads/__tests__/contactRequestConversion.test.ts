@@ -51,11 +51,22 @@ describe("convertContactRequestToClient — cliente nuevo", () => {
     const request = await createContactRequest(makeInput());
     expect(request.status).toBe("new");
     expect(request.clientId).toBeNull();
+    expect(request.clientWasCreated).toBeNull();
 
     const result = await convertContactRequestToClient(request.id);
 
     expect(result.contactRequest.status).toBe("converted");
     expect(result.contactRequest.clientId).toBe(result.client.id);
+  });
+
+  it("persiste clientWasCreated=true en la solicitud, y sobrevive a un reload", async () => {
+    const request = await createContactRequest(makeInput());
+    const result = await convertContactRequestToClient(request.id);
+
+    expect(result.contactRequest.clientWasCreated).toBe(true);
+
+    const reloaded = await getContactRequestById(request.id);
+    expect(reloaded?.clientWasCreated).toBe(true);
   });
 
   it("la solicitud permanece intacta como historial — todos los datos originales sobreviven a la conversión", async () => {
@@ -80,13 +91,27 @@ describe("convertContactRequestToClient — deduplicación por email", () => {
     const { client: existingClient } = await createClientOrGetExisting({
       name: "Diana Preexistente",
       email,
+      company: "Empresa Original",
     });
 
-    const request = await createContactRequest(makeInput({ email }));
+    const request = await createContactRequest(makeInput({ email, name: "Nombre de la solicitud" }));
     const result = await convertContactRequestToClient(request.id);
 
     expect(result.clientWasCreated).toBe(false);
     expect(result.client.id).toBe(existingClient.id);
+
+    // clientWasCreated=false queda persistido en la solicitud, no solo en
+    // el valor de retorno de esta llamada — debe sobrevivir a un reload.
+    expect(result.contactRequest.clientWasCreated).toBe(false);
+    const reloaded = await getContactRequestById(request.id);
+    expect(reloaded?.clientWasCreated).toBe(false);
+
+    // El cliente reutilizado NUNCA se modifica con los datos de la nueva
+    // solicitud — ni nombre, ni empresa, ni ningún otro campo.
+    const clientAfter = await getClientById(existingClient.id);
+    expect(clientAfter?.name).toBe("Diana Preexistente");
+    expect(clientAfter?.company).toBe("Empresa Original");
+    expect(clientAfter?.updatedAt).toBe(existingClient.updatedAt);
   });
 
   it("dos solicitudes distintas con el mismo email convergen al mismo cliente, nunca duplicado", async () => {

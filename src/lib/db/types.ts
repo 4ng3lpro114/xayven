@@ -114,6 +114,15 @@ export interface ContactRequest {
    *  conversations.client_id: the request is a historical record that
    *  must survive even if the client it points to is later deleted. */
   clientId: string | null;
+  /** Set once, in the SAME write as clientId/status="converted" (see
+   *  linkContactRequestToClient()) — the exact `created` value
+   *  createClientOrGetExisting() returned at conversion time, persisted
+   *  so the admin UI can honestly show "cliente creado" vs "cliente ya
+   *  existente" after a reload, without ever inferring it from
+   *  created_at/IDs. `null` means this request was converted before
+   *  0009_contact_requests_client_was_created.sql existed — never
+   *  guessed, shown as a neutral "Cliente asociado" state instead. */
+  clientWasCreated: boolean | null;
 }
 
 export interface ConversationCounts {

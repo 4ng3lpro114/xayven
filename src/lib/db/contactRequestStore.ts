@@ -35,6 +35,7 @@ interface ContactRequestRow {
   message: string;
   status: ContactRequest["status"];
   client_id: string | null;
+  client_was_created: boolean | null;
 }
 
 function rowToContactRequest(row: ContactRequestRow): ContactRequest {
@@ -49,11 +50,12 @@ function rowToContactRequest(row: ContactRequestRow): ContactRequest {
     message: row.message,
     status: row.status,
     clientId: row.client_id,
+    clientWasCreated: row.client_was_created,
   };
 }
 
 export async function createContactRequest(
-  input: Omit<ContactRequest, "id" | "createdAt" | "status" | "clientId">
+  input: Omit<ContactRequest, "id" | "createdAt" | "status" | "clientId" | "clientWasCreated">
 ): Promise<ContactRequest> {
   const supabase = getSupabaseAdmin();
   const draft: ContactRequest = {
@@ -61,6 +63,7 @@ export async function createContactRequest(
     createdAt: nowIso(),
     status: "new",
     clientId: null,
+    clientWasCreated: null,
     ...input,
   };
 
@@ -181,7 +184,8 @@ export async function updateContactRequestStatus(
 
 /**
  * The ONLY place `status: "converted"` is ever written — always together
- * with `client_id` in the same statement, so a request can never be
+ * with `client_id` (and, since 0009_contact_requests_client_was_created.sql,
+ * `client_was_created`) in the same statement, so a request can never be
  * observed as "converted" with a null client_id, even transiently. Called
  * exclusively by convertContactRequestToClient() (see
  * src/lib/leads/contactRequestConversion.ts) after a real client already
@@ -189,24 +193,32 @@ export async function updateContactRequestStatus(
  * conversion function short-circuits before ever calling this again for a
  * request that already has a clientId, so this always performs a real,
  * new transition when it's called at all.
+ *
+ * `clientWasCreated` is always the exact `created` value
+ * createClientOrGetExisting() returned for THIS conversion — never
+ * inferred, never derived from timestamps/IDs. Requests converted before
+ * this column existed keep `client_was_created: null` forever (this
+ * function is never called again for an already-converted request), which
+ * the admin UI treats as its own honest "unknown" state.
  */
 export async function linkContactRequestToClient(
   id: string,
-  clientId: string
+  clientId: string,
+  clientWasCreated: boolean
 ): Promise<ContactRequest> {
   const supabase = getSupabaseAdmin();
 
   if (!supabase) {
     const existing = memoryStore.get(id);
     if (!existing) throw new ContactRequestNotFoundError(id);
-    const updated: ContactRequest = { ...existing, clientId, status: "converted" };
+    const updated: ContactRequest = { ...existing, clientId, status: "converted", clientWasCreated };
     memoryStore.set(id, updated);
     return updated;
   }
 
   const { data, error } = await supabase
     .from("contact_requests")
-    .update({ client_id: clientId, status: "converted" })
+    .update({ client_id: clientId, status: "converted", client_was_created: clientWasCreated })
     .eq("id", id)
     .select("*")
     .single();

@@ -5,6 +5,7 @@ import { ArrowLeft, Mail, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getContactRequestById } from "@/lib/db/contactRequestStore";
 import { getClientById } from "@/lib/db/paymentsStore";
 import { buildContactRequestMailto } from "@/lib/contact/mailto";
+import { deriveContactRequestClientBanner } from "@/lib/contact/clientBanner";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
 import {
   ContactRequestStatusActions,
@@ -109,27 +110,46 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Caso B: convertida y el cliente sigue existiendo. */}
-      {isConverted && linkedClient && (
-        <div className="mt-4 rounded-lg border border-border-accent bg-bg-raised p-4">
-          <p className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.1em] text-accent-300">
-            <CheckCircle2 className="size-3.5" aria-hidden="true" />
-            Cliente asociado
-          </p>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-fg">
-              {linkedClient.name}
-              {linkedClient.company && <span className="text-fg-muted"> — {linkedClient.company}</span>}
-            </p>
-            <Link
-              href={`/admin/clients/${linkedClient.id}`}
-              className="inline-flex items-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg"
-            >
-              Ver cliente
-            </Link>
-          </div>
-        </div>
-      )}
+      {/* Caso B: convertida y el cliente sigue existiendo. El encabezado
+         (y, para el caso "reutilizado", el texto explicativo) dependen de
+         request.clientWasCreated — el valor exacto que
+         createClientOrGetExisting() devolvió en el momento de ESTA
+         conversión, persistido junto con client_id/status (ver
+         linkContactRequestToClient()). Nunca se infiere de fechas/IDs:
+         `null` es su propio estado honesto ("no lo sabemos" — solicitudes
+         convertidas antes de que esta columna existiera), no un tercer
+         valor a adivinar. */}
+      {isConverted &&
+        linkedClient &&
+        (() => {
+          const banner = deriveContactRequestClientBanner(request.clientWasCreated);
+          return (
+            <div className="mt-4 rounded-lg border border-border-accent bg-bg-raised p-4">
+              <p className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.1em] text-accent-300">
+                <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                {banner.title}
+              </p>
+              {banner.explanation && <p className="mt-2 text-sm text-fg-subtle">{banner.explanation}</p>}
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-fg">
+                    {linkedClient.name}
+                    {linkedClient.company && (
+                      <span className="text-fg-muted"> — {linkedClient.company}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-fg-subtle">{linkedClient.email}</p>
+                </div>
+                <Link
+                  href={`/admin/clients/${linkedClient.id}`}
+                  className="inline-flex items-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg"
+                >
+                  Ver cliente
+                </Link>
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Caso C/D: convertida, pero el cliente ya no se puede localizar
          (eliminado después de la conversión, o cualquier otro motivo por
