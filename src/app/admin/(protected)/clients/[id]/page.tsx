@@ -59,10 +59,13 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
     ACTIVITY_FEED_LIMIT
   );
 
-  // "Empresa" only ever comes from a linked conversation's `company` — it
-  // is NOT a column on `clients` (see Fase 5A audit). Shown only if at
-  // least one linked conversation actually has it; never invented.
-  const company = conversations.find((c) => c.company)?.company ?? null;
+  // "Empresa": `clients.company` (0008_clients_company.sql) is the real
+  // column now — populated when a client is created via a "Crear mi
+  // proyecto" contact request (see contactRequestConversion.ts). Clients
+  // created before that column existed, or via the lead-conversion flow
+  // (which still never writes `company` — see Fase 5A audit), fall back
+  // to a linked conversation's `company` so nothing regresses for them.
+  const company = client.company ?? conversations.find((c) => c.company)?.company ?? null;
 
   // Misma fuente de verdad que DELETE /api/admin/clients/[id]/route.ts —
   // getClientProtectionReason() nunca se recalcula en paralelo aquí, así

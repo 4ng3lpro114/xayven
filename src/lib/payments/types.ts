@@ -43,6 +43,11 @@ export interface Client {
   name: string;
   email: string;
   phone: string | null;
+  /** Nullable — 0008_clients_company.sql. Populated when a client is
+   *  created from a "Crear mi proyecto" contact request (see
+   *  src/lib/leads/contactRequestConversion.ts); existing clients created
+   *  before this column existed simply have null here. */
+  company: string | null;
 }
 
 export interface Project {

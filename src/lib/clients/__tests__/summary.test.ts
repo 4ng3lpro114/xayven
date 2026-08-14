@@ -11,6 +11,7 @@ function makeClient(overrides: Partial<Client> = {}): Client {
     name: "Cliente de prueba",
     email: "cliente@example.com",
     phone: null,
+    company: null,
     ...overrides,
   };
 }

@@ -5,6 +5,7 @@ import { LogOut } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/admin";
 import { LogoutButton } from "@/components/admin/LogoutButton";
+import { listContactRequests } from "@/lib/db/contactRequestStore";
 
 export default async function ProtectedAdminLayout({
   children,
@@ -17,6 +18,12 @@ export default async function ProtectedAdminLayout({
   if (!verifySessionToken(token)) {
     redirect("/admin/login");
   }
+
+  // Same "bulk fetch + in-memory reduce" the rest of this admin already
+  // uses for aggregate counts (e.g. countByLeadStatus) — there's no
+  // persistent "read/unread" concept anywhere in this codebase, so this
+  // is a recount on every render, not a stored flag.
+  const newContactRequestsCount = (await listContactRequests({ status: "new", limit: 1000 })).length;
 
   return (
     <div className="min-h-screen">
@@ -47,6 +54,17 @@ export default async function ProtectedAdminLayout({
               </Link>
               <Link href="/admin/promotions" className="transition-colors hover:text-fg">
                 Promociones
+              </Link>
+              <Link
+                href="/admin/contact-requests"
+                className="inline-flex items-center gap-1.5 transition-colors hover:text-fg"
+              >
+                Solicitudes
+                {newContactRequestsCount > 0 && (
+                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-pill bg-accent-500 px-1.5 py-0.5 text-[0.65rem] font-semibold text-white">
+                    {newContactRequestsCount}
+                  </span>
+                )}
               </Link>
             </nav>
           </div>

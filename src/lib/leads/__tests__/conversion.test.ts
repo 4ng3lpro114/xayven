@@ -94,10 +94,14 @@ describe("convertConversationToClient — happy path", () => {
     expect(result.conversation.urgency).toBe("alta");
     expect(result.conversation.aiSummary).toBe("Visitante interesada en ecommerce para su panadería.");
 
-    // None of that context is present anywhere on the Client type at all —
-    // this is a compile-time guarantee (Client only has id/createdAt/
-    // updatedAt/name/email/phone), reinforced here at runtime.
-    expect(result.client).not.toHaveProperty("company");
+    // None of that AI-gathered context is copied over by THIS flow —
+    // convertConversationToClient() never passes `company` to
+    // createClientOrGetExisting(), so the resulting client's `company`
+    // (a real column since 0008_clients_company.sql, populated by the
+    // separate contact-request conversion flow) stays null here. `budget`/
+    // `aiSummary` aren't fields on Client at all — a compile-time
+    // guarantee, reinforced here at runtime.
+    expect(result.client.company).toBeNull();
     expect(result.client).not.toHaveProperty("budget");
     expect(result.client).not.toHaveProperty("aiSummary");
   });

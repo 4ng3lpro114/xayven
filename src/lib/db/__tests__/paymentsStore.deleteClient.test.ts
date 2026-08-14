@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createClient as createPaymentsClient, getClientById, deleteClient } from "@/lib/db/paymentsStore";
+import { createContactRequest, getContactRequestById, linkContactRequestToClient } from "@/lib/db/contactRequestStore";
 
 // No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in the test environment, so
 // paymentsStore.ts transparently uses its in-memory fallback — real
@@ -36,5 +37,26 @@ describe("deleteClient", () => {
 
     expect(first.deleted).toBe(true);
     expect(second.deleted).toBe(false);
+  });
+
+  it("borrar un cliente vinculado a una solicitud convertida deja clientId en null pero conserva status='converted' (paridad con ON DELETE SET NULL)", async () => {
+    const client = await makeClient();
+    const request = await createContactRequest({
+      name: "Diana",
+      email: `diana-${Date.now()}@example.com`,
+      company: "Aguacates",
+      projectType: "Sitio web nuevo",
+      budget: "Menos de $1.000.000 COP",
+      message: "Necesito ayuda con mi proyecto.",
+    });
+    await linkContactRequestToClient(request.id, client.id);
+
+    await deleteClient(client.id);
+
+    const afterDelete = await getContactRequestById(request.id);
+    expect(afterDelete?.clientId).toBeNull();
+    // El estado histórico NUNCA se revierte automáticamente — ver
+    // nullifyClientIdInContactRequestsMemory()'s doc comment.
+    expect(afterDelete?.status).toBe("converted");
   });
 });

@@ -2,17 +2,28 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { contactSchema } from "@/lib/validation";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
+import { createContactRequest } from "@/lib/db/contactRequestStore";
+import { logContactEvent } from "@/lib/contact/log";
 
 export const runtime = "nodejs";
 
 /**
- * Contact form endpoint.
+ * Contact form endpoint — backs the public "Crear mi proyecto" CTA
+ * (nav/Hero/FinalCTA all link to /contact).
  *
- * This validates and accepts submissions today. Actual email delivery only
- * happens once RESEND_API_KEY + CONTACT_EMAIL_TO are configured (see
- * .env.example / README) — until then, submissions are logged server-side
- * only and are NOT persisted anywhere. This is documented deliberately
- * rather than faking a working inbox.
+ * Fixed here: every valid submission is now persisted to `contact_requests`
+ * BEFORE any attempt to email the admin, and stays visible in
+ * /admin/contact-requests regardless of what happens to that email. Before
+ * this fix, submissions were never persisted anywhere — if CONTACT_EMAIL_TO
+ * wasn't configured (as was the case in production), the visitor still saw
+ * a success message (HTTP 200, frontend only checked res.ok) while the
+ * request vanished with nothing but a console.info to show for it. See the
+ * "Crear mi proyecto" incident diagnosis for the full trace.
+ *
+ * The response now distinguishes `persisted` (did we actually save it?)
+ * from `emailSent` (did the admin notification go out?) — the frontend
+ * must only show success when `persisted` is true, and must never claim
+ * the email was sent when it wasn't.
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -38,23 +49,43 @@ export async function POST(request: NextRequest) {
 
   const { website, ...data } = parsed.data;
   if (website) {
-    // Honeypot triggered — silently accept so the bot doesn't learn anything.
-    return NextResponse.json({ ok: true });
+    // Honeypot triggered — silently accept so the bot doesn't learn
+    // anything. Deliberately not persisted, not logged: same behavior as
+    // before this fix, unrelated to the incident this change addresses.
+    return NextResponse.json({ ok: true, persisted: false, emailSent: false });
   }
+
+  logContactEvent("CONTACT_RECEIVED", { email: data.email });
+
+  try {
+    await createContactRequest({
+      name: data.name,
+      email: data.email,
+      company: data.company ? data.company : null,
+      projectType: data.projectType,
+      budget: data.budget,
+      message: data.message,
+    });
+  } catch (error) {
+    // Never claim success when the request was never actually saved — see
+    // the module doc comment. This is the one branch that must return an
+    // error status; every other branch below has already secured the
+    // request in the database.
+    logContactEvent("CONTACT_INTERNAL_ERROR", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ ok: false, error: "persist_failed" }, { status: 500 });
+  }
+
+  logContactEvent("CONTACT_PERSISTED", { email: data.email });
 
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_EMAIL_TO;
   const from = process.env.CONTACT_EMAIL_FROM ?? "XAYVEN <onboarding@resend.dev>";
 
   if (!apiKey || !to) {
-    console.info("[contact] Received submission (email delivery not configured):", {
-      name: data.name,
-      email: data.email,
-      company: data.company,
-      projectType: data.projectType,
-      budget: data.budget,
-    });
-    return NextResponse.json({ ok: true, delivered: false });
+    logContactEvent("CONTACT_EMAIL_FAILED", { reason: "not_configured" });
+    return NextResponse.json({ ok: true, persisted: true, emailSent: false });
   }
 
   try {
@@ -84,13 +115,18 @@ export async function POST(request: NextRequest) {
 
     if (!emailRes.ok) {
       const errText = await emailRes.text();
+      logContactEvent("CONTACT_EMAIL_FAILED", { reason: "resend_error", status: emailRes.status });
       console.error("[contact] Resend API error:", errText);
-      return NextResponse.json({ ok: false, error: "delivery_failed" }, { status: 502 });
+      // The request is already persisted above — a delivery-only failure
+      // must never be reported as if the request itself was lost.
+      return NextResponse.json({ ok: true, persisted: true, emailSent: false });
     }
 
-    return NextResponse.json({ ok: true, delivered: true });
+    logContactEvent("CONTACT_EMAIL_SENT", { email: data.email });
+    return NextResponse.json({ ok: true, persisted: true, emailSent: true });
   } catch (error) {
+    logContactEvent("CONTACT_EMAIL_FAILED", { reason: "unexpected_error" });
     console.error("[contact] Unexpected error sending email:", error);
-    return NextResponse.json({ ok: false, error: "delivery_failed" }, { status: 502 });
+    return NextResponse.json({ ok: true, persisted: true, emailSent: false });
   }
 }

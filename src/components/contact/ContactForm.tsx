@@ -19,6 +19,26 @@ interface FieldErrors {
 const inputClasses =
   "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle transition-colors focus:border-accent-400 focus:outline-none";
 
+export interface ContactApiResponse {
+  ok?: boolean;
+  persisted?: boolean;
+  emailSent?: boolean;
+}
+
+/**
+ * Pure and independently testable — same shape as
+ * requestPromotionStatusChange() in PromotionActions.tsx. Success now
+ * means "the request was actually saved" (`persisted: true`), never just
+ * "the HTTP call didn't error" — see /api/contact's route.ts doc comment
+ * for why res.ok alone used to lie about this. `emailSent` is read here
+ * only so callers/tests can distinguish the two failure-adjacent cases if
+ * they ever need to; the visitor-facing copy is intentionally identical
+ * either way (see the success render below).
+ */
+export function deriveContactSubmitStatus(body: ContactApiResponse): "success" | "error" {
+  return body.ok === true && body.persisted === true ? "success" : "error";
+}
+
 export function ContactForm({ form }: { form: Dictionary["contact"]["form"] }) {
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -58,8 +78,8 @@ export function ContactForm({ form }: { form: Dictionary["contact"]["form"] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Request failed");
-      setStatus("success");
+      const body = (await res.json().catch(() => ({}))) as ContactApiResponse;
+      setStatus(deriveContactSubmitStatus(body));
     } catch {
       setStatus("error");
     }

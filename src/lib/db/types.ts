@@ -86,6 +86,36 @@ export interface MaintenanceRequest {
   status: "new" | "contacted" | "resolved";
 }
 
+/** Submissions from the public "Crear mi proyecto" CTA → /contact form
+ *  (POST /api/contact). Similar status-lifecycle shape as
+ *  MaintenanceRequest, but a deliberately separate table/type — see
+ *  0007_contact_requests.sql for why these two domains (prospect asking
+ *  for a new site vs. existing client asking for support) aren't merged
+ *  into one shape.
+ *
+ * `status: "converted"` and `clientId` are only ever set together, by
+ * src/lib/leads/contactRequestConversion.ts — never manually (see
+ * ContactRequestActions.tsx: the manual status toggle never offers
+ * "converted" as an option), so a request can never be "converted" without
+ * a real, valid `clientId` pointing at it. */
+export interface ContactRequest {
+  id: string;
+  createdAt: string;
+  name: string;
+  email: string;
+  company: string | null;
+  projectType: string;
+  budget: string;
+  message: string;
+  status: "new" | "contacted" | "converted";
+  /** Set once, by convertContactRequestToClient() — never touched by the
+   *  manual status-change route. Nullable/ON DELETE SET NULL at the DB
+   *  level (0007_contact_requests.sql), same reasoning as
+   *  conversations.client_id: the request is a historical record that
+   *  must survive even if the client it points to is later deleted. */
+  clientId: string | null;
+}
+
 export interface ConversationCounts {
   total: number;
   exploring: number;

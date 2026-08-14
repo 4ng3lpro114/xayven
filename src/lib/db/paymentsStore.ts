@@ -3,6 +3,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/db/supabase";
 import { getGlobalMap, getGlobalSet } from "@/lib/db/memoryStore";
 import { nullifyClientIdInLeadStatusHistoryMemory } from "@/lib/db/conversationStore";
+import { nullifyClientIdInContactRequestsMemory } from "@/lib/db/contactRequestStore";
 import type {
   Client,
   Payment,
@@ -49,6 +50,7 @@ interface ClientRow {
   name: string;
   email: string;
   phone: string | null;
+  company: string | null;
 }
 
 function rowToClient(row: ClientRow): Client {
@@ -59,6 +61,7 @@ function rowToClient(row: ClientRow): Client {
     name: row.name,
     email: row.email,
     phone: row.phone,
+    company: row.company ?? null,
   };
 }
 
@@ -66,6 +69,7 @@ export async function createClient(input: {
   name: string;
   email: string;
   phone?: string | null;
+  company?: string | null;
 }): Promise<Client> {
   const supabase = getSupabaseAdmin();
   const timestamp = nowIso();
@@ -76,6 +80,7 @@ export async function createClient(input: {
     name: input.name,
     email: input.email,
     phone: input.phone ?? null,
+    company: input.company ?? null,
   };
 
   if (!supabase) {
@@ -85,7 +90,7 @@ export async function createClient(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone })
+    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone, company: draft.company })
     .select("*")
     .single();
 
@@ -165,8 +170,13 @@ export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
     const deleted = clientsMemory.delete(id);
     // Mirrors lead_status_history.client_id's real ON DELETE SET NULL
     // (Fase 9C) for the in-memory fallback only — production gets this
-    // for free from the FK itself.
-    if (deleted) nullifyClientIdInLeadStatusHistoryMemory(id);
+    // for free from the FK itself. contact_requests.client_id (Solicitud →
+    // Cliente) needs the exact same treatment, for the exact same reason —
+    // see nullifyClientIdInContactRequestsMemory()'s doc comment.
+    if (deleted) {
+      nullifyClientIdInLeadStatusHistoryMemory(id);
+      nullifyClientIdInContactRequestsMemory(id);
+    }
     return { deleted };
   }
 
@@ -229,6 +239,7 @@ export async function createClientOrGetExisting(input: {
   name: string;
   email: string;
   phone?: string | null;
+  company?: string | null;
 }): Promise<{ client: Client; created: boolean }> {
   const supabase = getSupabaseAdmin();
   const timestamp = nowIso();
@@ -240,6 +251,7 @@ export async function createClientOrGetExisting(input: {
     name: input.name,
     email: input.email,
     phone: input.phone ?? null,
+    company: input.company ?? null,
   };
 
   if (!supabase) {
@@ -256,7 +268,7 @@ export async function createClientOrGetExisting(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone })
+    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone, company: draft.company })
     .select("*")
     .single();
 
