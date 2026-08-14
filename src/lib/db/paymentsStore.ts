@@ -89,9 +89,17 @@ export async function createClient(input: {
     .select("*")
     .single();
 
+  // Supabase IS configured here — a write failure must never be papered
+  // over with a fabricated in-memory client, or a later lookup (which only
+  // ever queries Supabase once it's configured) would silently never find
+  // it. Same discipline as deleteClient/deleteProject/
+  // createClientOrGetExisting elsewhere in this file. The `!supabase`
+  // branch above remains the only legitimate place this function falls
+  // back to memory.
   if (error || !data) {
-    clientsMemory.set(draft.id, draft);
-    return draft;
+    throw new Error(
+      `[clients] createClient failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
   }
   return rowToClient(data as ClientRow);
 }
@@ -340,9 +348,14 @@ export async function createProject(input: {
     .select("*")
     .single();
 
+  // Supabase IS configured here — see the matching comment in createClient()
+  // above for why a write failure must throw, never fabricate an in-memory
+  // project. The `!supabase` branch above remains the only legitimate
+  // fallback.
   if (error || !data) {
-    projectsMemory.set(draft.id, draft);
-    return draft;
+    throw new Error(
+      `[projects] createProject failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
   }
   return rowToProject(data as ProjectRow);
 }
@@ -567,9 +580,16 @@ export async function createPayment(input: {
     .select("*")
     .single();
 
+  // Supabase IS configured here — see the matching comment in createClient()
+  // above. This one matters most: a fabricated in-memory Payment would be
+  // invisible to getPaymentByReference/getPaymentByProviderTransactionId
+  // (both Supabase-only once configured), so a real provider confirmation
+  // for it could never be matched back — throwing here is what prevents
+  // that. The `!supabase` branch above remains the only legitimate fallback.
   if (error || !data) {
-    paymentsMemory.set(draft.id, draft);
-    return draft;
+    throw new Error(
+      `[payments] createPayment failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
   }
   return rowToPayment(data as PaymentRow);
 }

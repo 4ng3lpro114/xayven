@@ -28,10 +28,67 @@ function sweep() {
   }
 }
 
+// Private/internal ranges (RFC 1918 IPv4 + loopback + link-local + IPv6
+// unique-local/link-local). A value in one of these ranges is never a real
+// visitor's address — at best it's an internal hop of our own hosting
+// infrastructure, and trusting it would silently merge every visitor behind
+// that hop into one shared rate-limit bucket.
+const PRIVATE_IP_PATTERNS = [
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[0-1])\./,
+  /^192\.168\./,
+  /^127\./,
+  /^0\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^f[cd][0-9a-f]{2}:/i,
+  /^fe80:/i,
+];
+
+function isPrivateIp(ip: string): boolean {
+  return PRIVATE_IP_PATTERNS.some((pattern) => pattern.test(ip));
+}
+
+/**
+ * Extracts the best-effort real client IP from proxy headers, without ever
+ * trusting a fixed position blindly.
+ *
+ * Neither `X-Forwarded-For` nor `X-Real-IP` are cryptographically
+ * trustworthy — a client can send either directly, and we have no confirmed
+ * documentation of exactly how Hostinger's edge (or any proxy in front of
+ * this app) rewrites them. Given that uncertainty, this prefers whichever
+ * candidate actually looks like a real, public, non-internal address:
+ *   1. `X-Real-IP`, if it's a plausible public IP.
+ *   2. `X-Forwarded-For`, walked from the RIGHT — the end a well-behaved
+ *      proxy appends to, as opposed to the left end a client fully
+ *      controls — looking for the first public IP.
+ *   3. If nothing public is found, the first available candidate (still
+ *      useful for grouping abusive traffic together) rather than blindly
+ *      returning "unknown".
+ * This deliberately never picks a private/internal address, which is what
+ * would otherwise risk merging many distinct legitimate visitors behind a
+ * shared internal hop into a single rate-limit bucket.
+ */
 export function getClientIp(request: NextRequest): string {
+  const candidates: string[] = [];
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) candidates.push(realIp);
+
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]!.trim();
-  return request.headers.get("x-real-ip") ?? "unknown";
+  if (forwarded) {
+    const parts = forwarded
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .reverse();
+    candidates.push(...parts);
+  }
+
+  const firstPublic = candidates.find((ip) => !isPrivateIp(ip));
+  if (firstPublic) return firstPublic;
+
+  return candidates[0] ?? "unknown";
 }
 
 /**
