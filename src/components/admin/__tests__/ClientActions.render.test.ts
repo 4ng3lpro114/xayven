@@ -16,7 +16,7 @@ import { ClientImportanceBadge } from "../ClientImportanceBadge";
 describe("ClientActions — renderizado condicional por importancia", () => {
   it("importance='protected' sin protectedReason → mensaje genérico de respaldo, nunca el botón de eliminar", () => {
     const html = renderToString(
-      createElement(ClientActions, { clientId: "c-1", importance: "protected" })
+      createElement(ClientActions, { clientId: "c-1", importance: "protected", isCommercial: true })
     );
 
     expect(html).toContain("Cliente protegido");
@@ -30,6 +30,7 @@ describe("ClientActions — renderizado condicional por importancia", () => {
         clientId: "c-1b",
         importance: "protected",
         protectedReason: "has_related_projects",
+        isCommercial: true,
       })
     );
 
@@ -44,6 +45,7 @@ describe("ClientActions — renderizado condicional por importancia", () => {
         clientId: "c-1c",
         importance: "protected",
         protectedReason: "has_payments",
+        isCommercial: true,
       })
     );
 
@@ -54,7 +56,7 @@ describe("ClientActions — renderizado condicional por importancia", () => {
 
   it("importance='normal' → muestra el botón 'Eliminar cliente' (primera interacción arma la confirmación; el flujo de doble clic ya está cubierto en requestDeleteClient/ClientActions.test.ts)", () => {
     const html = renderToString(
-      createElement(ClientActions, { clientId: "c-2", importance: "normal" })
+      createElement(ClientActions, { clientId: "c-2", importance: "normal", isCommercial: true })
     );
 
     expect(html).toContain("Eliminar cliente");
@@ -63,10 +65,20 @@ describe("ClientActions — renderizado condicional por importancia", () => {
 
   it("importance='important' → también muestra el botón 'Eliminar cliente' (la advertencia más fuerte aparece recién tras el primer clic, no es verificable sin interacción real — ver nota en ConversationActions.test.ts)", () => {
     const html = renderToString(
-      createElement(ClientActions, { clientId: "c-3", importance: "important" })
+      createElement(ClientActions, { clientId: "c-3", importance: "important", isCommercial: true })
     );
 
     expect(html).toContain("Eliminar cliente");
+    expect(html).not.toContain("Cliente protegido");
+  });
+
+  it("isCommercial=false → muestra 'Agregar cliente', nunca 'Eliminar cliente', sin importar importance/protectedReason (una cuenta sin cliente nunca puede estar 'protegida')", () => {
+    const html = renderToString(
+      createElement(ClientActions, { clientId: "c-4", importance: "normal", isCommercial: false })
+    );
+
+    expect(html).toContain("Agregar cliente");
+    expect(html).not.toContain("Eliminar cliente");
     expect(html).not.toContain("Cliente protegido");
   });
 });

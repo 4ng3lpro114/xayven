@@ -3,7 +3,7 @@ import {
   getContactRequestById,
   linkContactRequestToClient,
 } from "@/lib/db/contactRequestStore";
-import { getClientById, createClientOrGetExisting } from "@/lib/db/paymentsStore";
+import { getClientById, createClientOrGetExisting, markClientAsCommercial } from "@/lib/db/paymentsStore";
 import type { Client } from "@/lib/payments/types";
 import type { ContactRequest } from "@/lib/db/types";
 
@@ -85,12 +85,22 @@ export async function convertContactRequestToClient(
     throw new ContactRequestConversionError("client_not_found");
   }
 
-  const { client, created } = await createClientOrGetExisting({
+  const { client: foundOrCreatedClient, created } = await createClientOrGetExisting({
     name: contactRequest.name,
     email: contactRequest.email,
     phone: null,
     company: contactRequest.company,
   });
+
+  // Solicitud → Cliente is itself a commercial-conversion event: if the
+  // client found/created here was previously account-only
+  // (is_commercial=false — e.g. this person registered a XAYVEN account
+  // before ever submitting this request), promote it now. Never fires on
+  // the newly-created branch (createClientOrGetExisting defaults
+  // isCommercial to true).
+  const client = foundOrCreatedClient.isCommercial
+    ? foundOrCreatedClient
+    : await markClientAsCommercial(foundOrCreatedClient.id);
 
   const updatedContactRequest = await linkContactRequestToClient(contactRequest.id, client.id, created);
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ShieldCheck, Trash2 } from "lucide-react";
+import { Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClientImportance } from "@/lib/clients/importance";
 
@@ -57,6 +57,47 @@ export async function requestDeleteClient(
   return { status: "error", code: "generic" };
 }
 
+/**
+ * "Agregar cliente" — promotes an account-only client (is_commercial =
+ * false) into a real commercial client. Mirrors requestDeleteClient's
+ * shape/reasoning exactly, just against the new promote endpoint (see
+ * POST /api/admin/clients/[id]/promote).
+ */
+export type PromoteClientErrorCode = "not_found" | "unauthorized" | "generic";
+
+export type PromoteClientOutcome =
+  | { status: "success" }
+  | { status: "error"; code: PromoteClientErrorCode };
+
+export async function requestPromoteClient(
+  clientId: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<PromoteClientOutcome> {
+  let res: Response;
+  try {
+    res = await fetchImpl(`/api/admin/clients/${clientId}/promote`, { method: "POST" });
+  } catch {
+    return { status: "error", code: "generic" };
+  }
+
+  const body = (await res.json().catch(() => ({}))) as { ok?: boolean };
+
+  if (res.ok && body.ok) {
+    return { status: "success" };
+  }
+
+  if (res.status === 401) return { status: "error", code: "unauthorized" };
+  if (res.status === 404) return { status: "error", code: "not_found" };
+
+  return { status: "error", code: "generic" };
+}
+
+const PROMOTE_ERROR_MESSAGES: Record<PromoteClientErrorCode, string> = {
+  not_found: "Este cliente ya no existe.",
+  unauthorized: "Tu sesión expiró — recarga la página e inicia sesión de nuevo.",
+  generic: "No pudimos agregar el cliente. Intenta de nuevo.",
+};
+
 const ERROR_MESSAGES: Record<DeleteClientErrorCode, string> = {
   has_related_projects: "Este cliente no se puede eliminar porque tiene proyectos asociados.",
   has_payments: "Este cliente está protegido porque tiene proyectos con pagos registrados.",
@@ -89,6 +130,7 @@ export function ClientActions({
   clientId,
   importance,
   protectedReason = null,
+  isCommercial,
 }: {
   clientId: string;
   importance: ClientImportance;
@@ -97,11 +139,62 @@ export function ClientActions({
    *  generic message. Optional/nullable so existing callers that haven't
    *  been updated yet keep working with the original generic copy. */
   protectedReason?: "has_payments" | "has_related_projects" | null;
+  /** `clients.is_commercial` (0012_clients_is_commercial.sql). `false`
+   *  means this row only has a XAYVEN account linked, never went through
+   *  any commercial flow — "Eliminar cliente" makes no conceptual sense
+   *  for it (there's no commercial relationship to delete), so this
+   *  branch takes priority over everything below and offers "Agregar
+   *  cliente" instead. A non-commercial client can never be "protected"
+   *  either — protection only comes from real projects/payments, and
+   *  creating a project for an account-only client promotes it to
+   *  commercial first (see POST /api/admin/projects) — but this check is
+   *  still ordered first, defensively, rather than assumed unreachable. */
+  isCommercial: boolean;
 }) {
   const router = useRouter();
   const [armed, setArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [promoting, setPromoting] = useState(false);
+  const [promoteError, setPromoteError] = useState<string | null>(null);
+
+  if (!isCommercial) {
+    async function handlePromote() {
+      if (promoting) return;
+      setPromoting(true);
+      setPromoteError(null);
+
+      const outcome = await requestPromoteClient(clientId);
+
+      if (outcome.status === "success") {
+        router.refresh();
+        setPromoting(false);
+        return;
+      }
+
+      setPromoteError(PROMOTE_ERROR_MESSAGES[outcome.code]);
+      setPromoting(false);
+    }
+
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={handlePromote}
+          disabled={promoting}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border-strong bg-bg-raised px-3 py-2 text-sm text-fg-muted transition-colors hover:border-border-accent hover:text-fg disabled:cursor-default disabled:opacity-50"
+        >
+          {promoting ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Plus className="size-4" aria-hidden="true" />
+          )}
+          Agregar cliente
+        </button>
+        {promoteError && <p className="mt-2 text-xs text-error">{promoteError}</p>}
+      </div>
+    );
+  }
 
   if (importance === "protected") {
     const message = protectedReason

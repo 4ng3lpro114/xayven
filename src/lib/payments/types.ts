@@ -48,6 +48,13 @@ export interface Client {
    *  src/lib/leads/contactRequestConversion.ts); existing clients created
    *  before this column existed simply have null here. */
   company: string | null;
+  /** 0012_clients_is_commercial.sql. `true` = real commercial client
+   *  (Lead → Cliente, Solicitud → Cliente, direct client+project creation,
+   *  or promoted via "Agregar cliente"). `false` = has only a linked
+   *  XAYVEN account (profiles.client_id) — never went through any
+   *  commercial flow. See src/lib/auth/accountClientLink.ts. Never
+   *  downgraded from true to false by any code path in this project. */
+  isCommercial: boolean;
 }
 
 export interface Project {

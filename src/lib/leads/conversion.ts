@@ -5,6 +5,7 @@ import {
   getClientById,
   getClientByNormalizedEmail,
   createClientOrGetExisting,
+  markClientAsCommercial,
 } from "@/lib/db/paymentsStore";
 import type { Client } from "@/lib/payments/types";
 import type { Conversation } from "@/lib/db/types";
@@ -153,13 +154,23 @@ export async function convertConversationToClient(
   const normalizedEmail = normalizeEmail(email);
 
   const existingByEmail = await getClientByNormalizedEmail(normalizedEmail);
-  const { client, created } = existingByEmail
+  const { client: resolvedClient, created } = existingByEmail
     ? { client: existingByEmail, created: false }
     : await createClientOrGetExisting({
         name,
         email,
         phone: conversation.visitorPhone,
       });
+  let client = resolvedClient;
+
+  // Lead → Cliente is itself a commercial-conversion event: if the client
+  // found/created here was previously account-only (is_commercial=false —
+  // e.g. this person registered a XAYVEN account before this lead ever
+  // converted), promote it now. Never fires on the newly-created branch
+  // above (createClientOrGetExisting defaults isCommercial to true).
+  if (!client.isCommercial) {
+    client = await markClientAsCommercial(client.id);
+  }
 
   // Known, documented consequence of the self-healing ordering above: the
   // lead_status_history row this writes has `client_id: null`, because

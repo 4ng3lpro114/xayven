@@ -9,6 +9,7 @@ import {
   listLeadStatusHistory,
   deleteConversation,
 } from "@/lib/db/conversationStore";
+import { createClientOrGetExisting } from "@/lib/db/paymentsStore";
 import type { Conversation } from "@/lib/db/types";
 
 // No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in the test environment, so
@@ -419,5 +420,41 @@ describe("convertConversationToClient — datos incompletos", () => {
     await expect(convertConversationToClient("00000000-0000-0000-0000-000000000000")).rejects.toMatchObject(
       { code: "conversation_not_found" }
     );
+  });
+});
+
+describe("convertConversationToClient — is_commercial (0012_clients_is_commercial.sql)", () => {
+  it("cliente creado por primera vez en esta conversión → isCommercial true (createClientOrGetExisting default)", async () => {
+    const conversation = await makeSeededConversation({
+      visitorName: "Nuevo Lead",
+      visitorEmail: `lead-${Date.now()}@example.com`,
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    expect(result.clientWasCreated).toBe(true);
+    expect(result.client.isCommercial).toBe(true);
+  });
+
+  it("email ya tenía una cuenta XAYVEN sin cliente comercial (isCommercial=false) → Lead → Cliente lo promueve a true", async () => {
+    const email = `cuenta-${Date.now()}@example.com`;
+    const accountOnlyClient = await createClientOrGetExisting({
+      name: "Cuenta previa",
+      email,
+      isCommercial: false,
+    });
+    expect(accountOnlyClient.client.isCommercial).toBe(false);
+
+    const conversation = await makeSeededConversation({
+      visitorName: "El mismo visitante",
+      visitorEmail: email,
+    });
+
+    const result = await convertConversationToClient(conversation.id);
+
+    // Reutiliza la misma fila (no duplica) y la promueve.
+    expect(result.client.id).toBe(accountOnlyClient.client.id);
+    expect(result.clientWasCreated).toBe(false);
+    expect(result.client.isCommercial).toBe(true);
   });
 });

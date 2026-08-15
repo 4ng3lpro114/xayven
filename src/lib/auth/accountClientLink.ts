@@ -60,6 +60,14 @@ export async function linkAccountToClient({
   const normalizedEmail = email.trim().toLowerCase();
 
   const existing = await getClientByNormalizedEmail(normalizedEmail);
+  // Fase "cuenta ≠ cliente comercial" (0012_clients_is_commercial.sql):
+  // a brand-new client created purely from account registration is
+  // is_commercial: false — registering an account must never, by itself,
+  // make someone a commercial client. An EXISTING client found by email
+  // is returned untouched either way: if they were already commercial
+  // (real Lead/Solicitud conversion happened first), they stay commercial;
+  // if they were already account-only, they stay account-only. Never
+  // upgraded or downgraded here.
   const { client, created } = existing
     ? { client: existing, created: false }
     : await createClientOrGetExisting({
@@ -67,6 +75,7 @@ export async function linkAccountToClient({
         email,
         phone: null,
         company: null,
+        isCommercial: false,
       });
 
   await setProfileClientId(userId, client.id);

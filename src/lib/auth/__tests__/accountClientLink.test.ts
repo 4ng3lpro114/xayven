@@ -25,7 +25,9 @@ vi.mock("@/lib/db/profilesStore", () => ({
 
 import { linkAccountToClient, type LinkAccountToClientInput } from "../accountClientLink";
 
-function makeClient(overrides: Partial<{ id: string; email: string; name: string }> = {}) {
+function makeClient(
+  overrides: Partial<{ id: string; email: string; name: string; isCommercial: boolean }> = {}
+) {
   return {
     id: "client-1",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -34,6 +36,7 @@ function makeClient(overrides: Partial<{ id: string; email: string; name: string
     email: "diana@example.com",
     phone: null,
     company: null,
+    isCommercial: true,
     ...overrides,
   };
 }
@@ -48,7 +51,10 @@ describe("linkAccountToClient", () => {
 
   it("A. client inexistente → lo crea vía createClientOrGetExisting y vincula, clientWasCreated=true", async () => {
     getClientByNormalizedEmailMock.mockResolvedValue(null);
-    createClientOrGetExistingMock.mockResolvedValue({ client: makeClient(), created: true });
+    createClientOrGetExistingMock.mockResolvedValue({
+      client: makeClient({ isCommercial: false }),
+      created: true,
+    });
 
     const result = await linkAccountToClient({
       userId: "user-1",
@@ -58,11 +64,15 @@ describe("linkAccountToClient", () => {
 
     expect(result).toEqual({ clientId: "client-1", clientWasCreated: true });
     expect(getClientByNormalizedEmailMock).toHaveBeenCalledWith("diana@example.com");
+    // 0012_clients_is_commercial.sql: un client creado exclusivamente por
+    // registro de cuenta nunca es comercial por defecto — isCommercial:
+    // false explícito, nunca omitido (que heredaría el default true).
     expect(createClientOrGetExistingMock).toHaveBeenCalledWith({
       name: "Diana Pérez",
       email: "diana@example.com",
       phone: null,
       company: null,
+      isCommercial: false,
     });
     expect(setProfileClientIdMock).toHaveBeenCalledWith("user-1", "client-1");
   });

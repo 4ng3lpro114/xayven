@@ -5,6 +5,7 @@ import {
   getProjectById,
   listProjects,
   createClient as createPaymentsClient,
+  getClientById,
 } from "@/lib/db/paymentsStore";
 
 /**
@@ -94,6 +95,35 @@ describe("POST /api/admin/projects", () => {
 
     const project = await getProjectById(body.projectId);
     expect(project?.clientId).toBe(client.id);
+  });
+
+  it("CON clientId de una cuenta XAYVEN sin cliente comercial (isCommercial=false) → crear el proyecto la promueve a isCommercial=true (0012_clients_is_commercial.sql)", async () => {
+    requireAdminSessionMock.mockResolvedValue(true);
+    const accountOnlyClient = await createPaymentsClient({
+      name: "Solo cuenta",
+      email: `solo-cuenta-${Date.now()}@example.com`,
+      isCommercial: false,
+    });
+    expect(accountOnlyClient.isCommercial).toBe(false);
+
+    const res = await POST(
+      makeRequest({
+        clientId: accountOnlyClient.id,
+        projectName: "Proyecto real para cuenta previamente sin cliente",
+        totalAmount: 1_500_000,
+        currency: "COP",
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    const reloadedClient = await getClientById(accountOnlyClient.id);
+    expect(reloadedClient?.isCommercial).toBe(true);
+
+    const project = await getProjectById(body.projectId);
+    expect(project?.clientId).toBe(accountOnlyClient.id);
   });
 
   it("clientId inexistente → 404, no crea proyecto ni cliente", async () => {

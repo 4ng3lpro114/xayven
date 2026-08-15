@@ -50,6 +50,13 @@ export interface ClientSummary {
    *  param below. Never inferred from name/email matching; purely a
    *  read of the same relationship linkAccountToClient() establishes. */
   hasAccount: boolean;
+  /** Direct passthrough of `client.isCommercial`
+   *  (0012_clients_is_commercial.sql) — the single source of truth for
+   *  "es cliente comercial", independent of `hasAccount` above. A client
+   *  can have an account without being commercial (just registered) or be
+   *  commercial without an account (converted via Lead/Solicitud, never
+   *  registered). No inference — this is the real column value. */
+  isCommercialClient: boolean;
 }
 
 function groupById<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
@@ -177,6 +184,7 @@ export function buildClientSummaries(params: {
       hasPayments,
       importance,
       hasAccount: params.linkedClientIds?.has(client.id) ?? false,
+      isCommercialClient: client.isCommercial,
     });
   }
 

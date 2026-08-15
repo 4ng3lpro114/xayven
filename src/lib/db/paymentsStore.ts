@@ -51,6 +51,7 @@ interface ClientRow {
   email: string;
   phone: string | null;
   company: string | null;
+  is_commercial: boolean;
 }
 
 function rowToClient(row: ClientRow): Client {
@@ -62,6 +63,7 @@ function rowToClient(row: ClientRow): Client {
     email: row.email,
     phone: row.phone,
     company: row.company ?? null,
+    isCommercial: row.is_commercial,
   };
 }
 
@@ -70,6 +72,12 @@ export async function createClient(input: {
   email: string;
   phone?: string | null;
   company?: string | null;
+  /** Defaults to `true` — every pre-existing caller (Lead → Cliente,
+   *  Solicitud → Cliente, direct client+project creation in
+   *  /api/admin/projects) keeps creating real commercial clients with zero
+   *  call-site changes. Only linkAccountToClient() (account registration)
+   *  passes `false` explicitly — see 0012_clients_is_commercial.sql. */
+  isCommercial?: boolean;
 }): Promise<Client> {
   const supabase = getSupabaseAdmin();
   const timestamp = nowIso();
@@ -81,6 +89,7 @@ export async function createClient(input: {
     email: input.email,
     phone: input.phone ?? null,
     company: input.company ?? null,
+    isCommercial: input.isCommercial ?? true,
   };
 
   if (!supabase) {
@@ -90,7 +99,14 @@ export async function createClient(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone, company: draft.company })
+    .insert({
+      id: draft.id,
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+      company: draft.company,
+      is_commercial: draft.isCommercial,
+    })
     .select("*")
     .single();
 
@@ -240,6 +256,15 @@ export async function createClientOrGetExisting(input: {
   email: string;
   phone?: string | null;
   company?: string | null;
+  /** Same meaning/default as createClient()'s — only used on the
+   *  newly-created branch. When an existing client is found instead, its
+   *  own `isCommercial` is returned untouched (never forced up or down
+   *  here) — promoting a found account-only client to commercial is a
+   *  deliberate decision made by the CALLER (see
+   *  markClientAsCommercial(), used by conversion.ts/
+   *  contactRequestConversion.ts right after this call), never implicit
+   *  in this find-or-create primitive. */
+  isCommercial?: boolean;
 }): Promise<{ client: Client; created: boolean }> {
   const supabase = getSupabaseAdmin();
   const timestamp = nowIso();
@@ -252,6 +277,7 @@ export async function createClientOrGetExisting(input: {
     email: input.email,
     phone: input.phone ?? null,
     company: input.company ?? null,
+    isCommercial: input.isCommercial ?? true,
   };
 
   if (!supabase) {
@@ -268,7 +294,14 @@ export async function createClientOrGetExisting(input: {
 
   const { data, error } = await supabase
     .from("clients")
-    .insert({ id: draft.id, name: draft.name, email: draft.email, phone: draft.phone, company: draft.company })
+    .insert({
+      id: draft.id,
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+      company: draft.company,
+      is_commercial: draft.isCommercial,
+    })
     .select("*")
     .single();
 
@@ -285,6 +318,56 @@ export async function createClientOrGetExisting(input: {
   throw new Error(
     `[leads] createClientOrGetExisting failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
   );
+}
+
+/**
+ * Single-purpose promotion writer — sets `is_commercial = true`, nothing
+ * else. Idempotent: calling it on an already-commercial client is a
+ * harmless UPDATE (same value written again), matching setProfileClientId's
+ * "converges on repeat calls" discipline (profilesStore.ts).
+ *
+ * The only legitimate callers are real commercial-conversion moments:
+ * convertConversationToClient() (Lead → Cliente), promoting a
+ * previously-account-only client it found by email;
+ * convertContactRequestToClient() (Solicitud → Cliente), same reason;
+ * POST /api/admin/clients/[id]/promote (the "Agregar cliente" button, for
+ * an account-only client with no lead/solicitud path at all); and
+ * POST /api/admin/projects, because creating a real project for an
+ * account-only client is itself a commercial event — see that route's
+ * comment. Deliberately never called from linkAccountToClient() —
+ * registering a XAYVEN account must never, by itself, promote anyone.
+ *
+ * Never falls back to memory on a real Supabase error — same discipline
+ * as deleteClient()/createClientOrGetExisting() above: a fabricated
+ * success here would let a client look promoted in the UI when it wasn't
+ * actually written.
+ */
+export async function markClientAsCommercial(id: string): Promise<Client> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    const existing = clientsMemory.get(id);
+    if (!existing) {
+      throw new Error(`[clients] markClientAsCommercial failed: client ${id} not found`);
+    }
+    const updated: Client = { ...existing, isCommercial: true, updatedAt: nowIso() };
+    clientsMemory.set(id, updated);
+    return updated;
+  }
+
+  const { data, error } = await supabase
+    .from("clients")
+    .update({ is_commercial: true })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `[clients] markClientAsCommercial failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
+  }
+  return rowToClient(data as ClientRow);
 }
 
 // ---------------------------------------------------------------------------

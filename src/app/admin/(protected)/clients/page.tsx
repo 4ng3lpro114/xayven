@@ -55,7 +55,15 @@ function matchesFilter(filterKey: string, summary: ClientSummary | undefined): b
     case "exploring":
       return summary.leadStatus === "exploring";
     case "client":
-      return summary.leadStatus === "client";
+      // 0012_clients_is_commercial.sql: isCommercialClient is the real,
+      // authoritative "es cliente comercial" signal now — a direct
+      // passthrough of clients.is_commercial — instead of the previous
+      // leadStatus === "client" proxy (which stays correct for every
+      // pre-existing commercial client, since Lead → Cliente/Solicitud →
+      // Cliente always set both together, but was never true for a client
+      // whose relevant conversation status later changed away from
+      // "client" while the commercial relationship itself never un-does).
+      return summary.isCommercialClient;
     case "with_project":
       return summary.hasProjects;
     case "with_payments":
@@ -245,8 +253,10 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
                   <td className="px-4 py-3">
                     {summary.leadStatus ? (
                       <LeadStatusBadge status={summary.leadStatus} />
-                    ) : (
+                    ) : summary.isCommercialClient ? (
                       <span className="text-fg-subtle">—</span>
+                    ) : (
+                      <span className="text-fg-subtle">Sin cliente</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -292,7 +302,13 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {summary.hasAccount && <AccountBadge />}
-                {summary.leadStatus && <LeadStatusBadge status={summary.leadStatus} />}
+                {summary.leadStatus ? (
+                  <LeadStatusBadge status={summary.leadStatus} />
+                ) : (
+                  !summary.isCommercialClient && (
+                    <span className="text-xs text-fg-subtle">Sin cliente</span>
+                  )
+                )}
                 <span className="text-xs text-fg-muted">{summary.conversationsCount} conversaciones</span>
                 <span className="text-xs text-fg-muted">{summary.projectsCount} proyectos</span>
               </div>

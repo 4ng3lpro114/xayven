@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/auth/admin";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
-import { createClient, createProject, getClientById } from "@/lib/db/paymentsStore";
+import { createClient, createProject, getClientById, markClientAsCommercial } from "@/lib/db/paymentsStore";
 
 export const runtime = "nodejs";
 
@@ -69,6 +69,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: false, error: "client_not_found" }, { status: 404 });
       }
       clientId = existingClient.id;
+
+      // Creating a real project for an account-only client (is_commercial
+      // = false) is itself a commercial-conversion event — never leave a
+      // client with a real project still reading as "Sin cliente". Same
+      // writer/discipline as Lead → Cliente / Solicitud → Cliente's own
+      // promotion (see conversion.ts / contactRequestConversion.ts).
+      if (!existingClient.isCommercial) {
+        await markClientAsCommercial(existingClient.id);
+      }
     } else {
       // zod's .refine already guarantees these are present here.
       const client = await createClient({

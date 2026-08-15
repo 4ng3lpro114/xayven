@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { buildClientSummaries } from "@/lib/clients/summary";
+import {
+  createClient as createPaymentsClient,
+  createProject as createPaymentsProject,
+  markClientAsCommercial,
+} from "@/lib/db/paymentsStore";
 import type { Conversation, ContactRequest } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
 
@@ -12,6 +17,7 @@ function makeClient(overrides: Partial<Client> = {}): Client {
     email: "cliente@example.com",
     phone: null,
     company: null,
+    isCommercial: true,
     ...overrides,
   };
 }
@@ -330,6 +336,59 @@ describe("buildClientSummaries — hasAccount (linkedClientIds)", () => {
     expect(summaries.get("client-2")!.hasAccount).toBe(true);
   });
 
+  it("combinación cuenta + cliente + proyecto — round-trip real contra paymentsStore (in-memory), no solo objetos de prueba", async () => {
+    // 1. Registro de cuenta XAYVEN — is_commercial: false, como
+    //    linkAccountToClient() lo crea de verdad hoy.
+    const client = await createPaymentsClient({
+      name: "Camila de Prueba",
+      email: `camila-${Date.now()}@example.com`,
+      isCommercial: false,
+    });
+
+    let summary = buildClientSummaries({
+      clients: [client],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set([client.id]),
+    }).get(client.id)!;
+    expect(summary).toMatchObject({ hasAccount: true, isCommercialClient: false, hasProjects: false });
+
+    // 2. Admin pulsa "Agregar cliente" — markClientAsCommercial().
+    const promoted = await markClientAsCommercial(client.id);
+    expect(promoted.isCommercial).toBe(true);
+
+    summary = buildClientSummaries({
+      clients: [promoted],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set([client.id]),
+    }).get(client.id)!;
+    expect(summary).toMatchObject({ hasAccount: true, isCommercialClient: true, hasProjects: false });
+
+    // 3. Se crea un proyecto real para ese cliente.
+    const project = await createPaymentsProject({
+      clientId: client.id,
+      name: "Proyecto real",
+      totalAmount: 1_000_000,
+    });
+
+    summary = buildClientSummaries({
+      clients: [promoted],
+      conversations: [],
+      projects: [project],
+      payments: [],
+      linkedClientIds: new Set([client.id]),
+    }).get(client.id)!;
+    expect(summary).toMatchObject({
+      hasAccount: true,
+      isCommercialClient: true,
+      hasProjects: true,
+      projectsCount: 1,
+    });
+  });
+
   it("hasAccount no influye en importance — sigue derivándose solo de leadScore/leadStatus/proyectos/pagos", () => {
     const summaries = buildClientSummaries({
       clients: [makeClient()],
@@ -339,5 +398,51 @@ describe("buildClientSummaries — hasAccount (linkedClientIds)", () => {
       linkedClientIds: new Set(["client-1"]),
     });
     expect(summaries.get("client-1")!.importance).toBe("normal");
+  });
+});
+
+describe("buildClientSummaries — isCommercialClient (0012_clients_is_commercial.sql)", () => {
+  it("client.isCommercial=true → isCommercialClient true (passthrough directo, sin inferencia)", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient({ isCommercial: true })],
+      conversations: [],
+      projects: [],
+      payments: [],
+    });
+    expect(summaries.get("client-1")!.isCommercialClient).toBe(true);
+  });
+
+  it("client.isCommercial=false (cuenta XAYVEN sin cliente comercial) → isCommercialClient false, leadStatus sigue null, importance sigue 'normal'", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient({ isCommercial: false })],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["client-1"]),
+    });
+    const summary = summaries.get("client-1")!;
+    expect(summary.isCommercialClient).toBe(false);
+    expect(summary.hasAccount).toBe(true);
+    expect(summary.leadStatus).toBeNull();
+    expect(summary.importance).toBe("normal");
+  });
+
+  it("hasAccount e isCommercialClient son independientes en las 4 combinaciones posibles", () => {
+    const summaries = buildClientSummaries({
+      clients: [
+        makeClient({ id: "solo-cuenta", isCommercial: false }),
+        makeClient({ id: "solo-cliente", email: "solo-cliente@example.com", isCommercial: true }),
+        makeClient({ id: "ambos", email: "ambos@example.com", isCommercial: true }),
+        makeClient({ id: "ninguno", email: "ninguno@example.com", isCommercial: false }),
+      ],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["solo-cuenta", "ambos"]),
+    });
+    expect(summaries.get("solo-cuenta")).toMatchObject({ hasAccount: true, isCommercialClient: false });
+    expect(summaries.get("solo-cliente")).toMatchObject({ hasAccount: false, isCommercialClient: true });
+    expect(summaries.get("ambos")).toMatchObject({ hasAccount: true, isCommercialClient: true });
+    expect(summaries.get("ninguno")).toMatchObject({ hasAccount: false, isCommercialClient: false });
   });
 });

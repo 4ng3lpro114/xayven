@@ -221,3 +221,31 @@ describe("convertContactRequestToClient — recuperación tras eliminar el clien
     expect(secondAttempt.clientWasCreated).toBe(false);
   });
 });
+
+describe("convertContactRequestToClient — is_commercial (0012_clients_is_commercial.sql)", () => {
+  it("cliente creado por primera vez en esta conversión → isCommercial true (createClientOrGetExisting default)", async () => {
+    const request = await createContactRequest(makeInput());
+
+    const result = await convertContactRequestToClient(request.id);
+
+    expect(result.clientWasCreated).toBe(true);
+    expect(result.client.isCommercial).toBe(true);
+  });
+
+  it("email ya tenía una cuenta XAYVEN sin cliente comercial (isCommercial=false) → Solicitud → Cliente lo promueve a true, sin duplicar", async () => {
+    const input = makeInput();
+    const accountOnlyClient = await createClientOrGetExisting({
+      name: "Cuenta previa",
+      email: input.email,
+      isCommercial: false,
+    });
+    expect(accountOnlyClient.client.isCommercial).toBe(false);
+
+    const request = await createContactRequest(input);
+    const result = await convertContactRequestToClient(request.id);
+
+    expect(result.client.id).toBe(accountOnlyClient.client.id);
+    expect(result.clientWasCreated).toBe(false);
+    expect(result.client.isCommercial).toBe(true);
+  });
+});
