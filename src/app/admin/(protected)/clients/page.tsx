@@ -7,6 +7,7 @@ import { buildClientSummaries, type ClientSummary } from "@/lib/clients/summary"
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
 import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
 import { AccountBadge } from "@/components/admin/AccountBadge";
+import { CommercialStatusBadge } from "@/components/admin/CommercialStatusBadge";
 import { formatMoney } from "@/lib/payments/format";
 import { cn } from "@/lib/utils";
 
@@ -86,6 +87,29 @@ function matchesAccountFilter(accountKey: string, summary: ClientSummary | undef
     default:
       return true;
   }
+}
+
+/**
+ * Columna Estado — 0012_clients_is_commercial.sql UX pass: 4 combinaciones
+ * posibles de (hasAccount, isCommercialClient), nunca inferidas entre sí.
+ *   1. leadStatus real (interesado/explorando/caliente/cliente/soporte) →
+ *      siempre gana, es la señal más específica que existe.
+ *   2. Sin leadStatus, pero hay cuenta O es cliente comercial → se
+ *      reutiliza CommercialStatusBadge (mismo componente que el detalle
+ *      del cliente) para decir explícitamente "Cliente"/"Sin cliente" —
+ *      nunca una raya "—" ambigua que antes se leía igual tuviera o no
+ *      cuenta vinculada.
+ *   3. Ni cuenta ni cliente comercial → "—" (caso residual, hoy
+ *      inalcanzable en la práctica porque toda fila en `clients` se crea
+ *      o bien comercial, o bien con cuenta vinculada — pero se maneja
+ *      igual, sin asumir que nunca ocurrirá).
+ */
+function EstadoCell({ summary }: { summary: ClientSummary }) {
+  if (summary.leadStatus) return <LeadStatusBadge status={summary.leadStatus} />;
+  if (summary.isCommercialClient || summary.hasAccount) {
+    return <CommercialStatusBadge isCommercial={summary.isCommercialClient} />;
+  }
+  return <span className="text-fg-subtle">—</span>;
 }
 
 /** Builds an /admin/clients URL preserving whichever of q/filter/account
@@ -251,13 +275,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
                     {summary.hasAccount ? <AccountBadge /> : <span className="text-fg-subtle">—</span>}
                   </td>
                   <td className="px-4 py-3">
-                    {summary.leadStatus ? (
-                      <LeadStatusBadge status={summary.leadStatus} />
-                    ) : summary.isCommercialClient ? (
-                      <span className="text-fg-subtle">—</span>
-                    ) : (
-                      <span className="text-fg-subtle">Sin cliente</span>
-                    )}
+                    <EstadoCell summary={summary} />
                   </td>
                   <td className="px-4 py-3">
                     <ClientImportanceBadge importance={summary.importance} />
@@ -302,13 +320,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {summary.hasAccount && <AccountBadge />}
-                {summary.leadStatus ? (
-                  <LeadStatusBadge status={summary.leadStatus} />
-                ) : (
-                  !summary.isCommercialClient && (
-                    <span className="text-xs text-fg-subtle">Sin cliente</span>
-                  )
-                )}
+                <EstadoCell summary={summary} />
                 <span className="text-xs text-fg-muted">{summary.conversationsCount} conversaciones</span>
                 <span className="text-xs text-fg-muted">{summary.projectsCount} proyectos</span>
               </div>

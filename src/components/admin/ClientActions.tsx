@@ -14,7 +14,9 @@ export type DeleteClientErrorCode =
   | "unauthorized"
   | "generic";
 
-export type DeleteClientOutcome = { status: "success" } | { status: "error"; code: DeleteClientErrorCode };
+export type DeleteClientOutcome =
+  | { status: "success"; downgraded: boolean }
+  | { status: "error"; code: DeleteClientErrorCode };
 
 /**
  * Mirrors requestDeleteConversation's shape/reasoning exactly (Fase 4B) —
@@ -28,6 +30,14 @@ export type DeleteClientOutcome = { status: "success" } | { status: "error"; cod
  * fallback for any 409 reason this client doesn't recognize yet — still
  * mapped to a "can't delete" message, never to the misleading "try again"
  * generic one.
+ *
+ * `downgraded` (0012_clients_is_commercial.sql UX pass): the backend
+ * returns true when it un-promoted the client instead of physically
+ * deleting the row (client had a linked XAYVEN account) — see
+ * DELETE /api/admin/clients/[id]/route.ts. `?? false` covers the (never
+ * expected in practice) case of a response missing the field entirely,
+ * so a malformed body degrades to the old "row is gone" navigation
+ * instead of silently staying on a stale page.
  */
 export async function requestDeleteClient(
   clientId: string,
@@ -40,10 +50,14 @@ export async function requestDeleteClient(
     return { status: "error", code: "generic" };
   }
 
-  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    downgraded?: boolean;
+  };
 
   if (res.ok && body.ok) {
-    return { status: "success" };
+    return { status: "success", downgraded: body.downgraded ?? false };
   }
 
   if (res.status === 401) return { status: "error", code: "unauthorized" };
@@ -226,6 +240,17 @@ export function ClientActions({
     const outcome = await requestDeleteClient(clientId);
 
     if (outcome.status === "success") {
+      // downgraded: la fila sigue existiendo (is_commercial pasó a
+      // false), así que esta misma página sigue siendo válida — se
+      // refresca in-place, igual que el flujo de "Agregar cliente", en
+      // vez de navegar a /admin/clients como si el cliente hubiera
+      // desaparecido.
+      if (outcome.downgraded) {
+        router.refresh();
+        setDeleting(false);
+        setArmed(false);
+        return;
+      }
       router.push("/admin/clients");
       return;
     }

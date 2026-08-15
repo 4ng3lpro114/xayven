@@ -370,6 +370,55 @@ export async function markClientAsCommercial(id: string): Promise<Client> {
   return rowToClient(data as ClientRow);
 }
 
+/**
+ * Exact mirror of markClientAsCommercial() above — sets `is_commercial =
+ * false`, nothing else. Idempotent, same "no memory fallback on a real
+ * Supabase error" discipline.
+ *
+ * The only legitimate caller is DELETE /api/admin/clients/[id]/route.ts,
+ * and only for a client that has a real XAYVEN account linked
+ * (profiles.client_id points at it): "Eliminar cliente" for that person
+ * can never be a physical DELETE, because that would sever the account's
+ * only link to any client row and make it structurally impossible to ever
+ * show "Cuenta XAYVEN: Activa / Cliente: Sin cliente" for them again
+ * without creating a second row (which this project never does). This is
+ * the exact reverse of what "Agregar cliente" does — it un-does the
+ * promotion, on the SAME row, keeping the account link, conversations,
+ * and contact_requests intact (a physical DELETE would instead null out
+ * conversations.client_id/lead_status_history.client_id/
+ * contact_requests.client_id via their ON DELETE SET NULL FKs — this
+ * UPDATE touches none of that). A client with NO linked account keeps
+ * being physically deleted exactly as before — see the route for that
+ * branch.
+ */
+export async function markClientAsNonCommercial(id: string): Promise<Client> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    const existing = clientsMemory.get(id);
+    if (!existing) {
+      throw new Error(`[clients] markClientAsNonCommercial failed: client ${id} not found`);
+    }
+    const updated: Client = { ...existing, isCommercial: false, updatedAt: nowIso() };
+    clientsMemory.set(id, updated);
+    return updated;
+  }
+
+  const { data, error } = await supabase
+    .from("clients")
+    .update({ is_commercial: false })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `[clients] markClientAsNonCommercial failed: ${error?.code ?? "unknown"} ${error?.message ?? ""}`
+    );
+  }
+  return rowToClient(data as ClientRow);
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------

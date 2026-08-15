@@ -3,6 +3,7 @@ import {
   createClient as createPaymentsClient,
   createClientOrGetExisting,
   markClientAsCommercial,
+  markClientAsNonCommercial,
 } from "@/lib/db/paymentsStore";
 
 // No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in the test environment, so
@@ -69,5 +70,46 @@ describe("clients.is_commercial (0012_clients_is_commercial.sql)", () => {
 
   it("markClientAsCommercial() sobre un id inexistente lanza, nunca fabrica un éxito falso", async () => {
     await expect(markClientAsCommercial("no-existe")).rejects.toThrow(/not found/);
+  });
+
+  it("markClientAsNonCommercial() despromueve is_commercial=true → false (espejo exacto de markClientAsCommercial)", async () => {
+    const created = await createPaymentsClient({ name: "Cliente real", email: uniqueEmail() });
+    expect(created.isCommercial).toBe(true);
+
+    const downgraded = await markClientAsNonCommercial(created.id);
+    expect(downgraded.isCommercial).toBe(false);
+    expect(downgraded.id).toBe(created.id);
+  });
+
+  it("markClientAsNonCommercial() es idempotente — repetirlo sobre un cliente ya no-comercial no falla y sigue false", async () => {
+    const created = await createPaymentsClient({
+      name: "Cuenta",
+      email: uniqueEmail(),
+      isCommercial: false,
+    });
+
+    const downgraded = await markClientAsNonCommercial(created.id);
+    expect(downgraded.isCommercial).toBe(false);
+  });
+
+  it("markClientAsNonCommercial() sobre un id inexistente lanza, nunca fabrica un éxito falso", async () => {
+    await expect(markClientAsNonCommercial("no-existe")).rejects.toThrow(/not found/);
+  });
+
+  it("promover y despromover son reversibles sobre la MISMA fila — nunca se crea una segunda (G. doble operación)", async () => {
+    const created = await createPaymentsClient({
+      name: "Cuenta",
+      email: uniqueEmail(),
+      isCommercial: false,
+    });
+
+    const up = await markClientAsCommercial(created.id);
+    const down = await markClientAsNonCommercial(up.id);
+    const upAgain = await markClientAsCommercial(down.id);
+
+    expect(up.id).toBe(created.id);
+    expect(down.id).toBe(created.id);
+    expect(upAgain.id).toBe(created.id);
+    expect(upAgain.isCommercial).toBe(true);
   });
 });

@@ -16,15 +16,37 @@ afterEach(() => {
 });
 
 describe("requestDeleteClient", () => {
-  it("éxito → status success", async () => {
+  it("éxito, cliente sin cuenta vinculada → status success, downgraded: false (comportamiento actual, DELETE físico)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: true, downgraded: false }))
+    );
+
+    const outcome = await requestDeleteClient("client-1");
+
+    expect(outcome).toEqual({ status: "success", downgraded: false });
+  });
+
+  it("éxito, cliente CON cuenta vinculada → status success, downgraded: true (0012_clients_is_commercial.sql: se despromueve en vez de borrar la fila)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ ok: true, downgraded: true }))
+    );
+
+    const outcome = await requestDeleteClient("client-1b");
+
+    expect(outcome).toEqual({ status: "success", downgraded: true });
+  });
+
+  it("éxito sin el campo downgraded en el body (defensivo) → se asume false, nunca undefined", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse({ ok: true }))
     );
 
-    const outcome = await requestDeleteClient("client-1");
+    const outcome = await requestDeleteClient("client-1c");
 
-    expect(outcome).toEqual({ status: "success" });
+    expect(outcome).toEqual({ status: "success", downgraded: false });
   });
 
   it("409 has_related_projects → code has_related_projects", async () => {

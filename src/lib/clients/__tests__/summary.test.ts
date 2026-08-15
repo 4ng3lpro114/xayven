@@ -4,6 +4,7 @@ import {
   createClient as createPaymentsClient,
   createProject as createPaymentsProject,
   markClientAsCommercial,
+  markClientAsNonCommercial,
 } from "@/lib/db/paymentsStore";
 import type { Conversation, ContactRequest } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
@@ -444,5 +445,75 @@ describe("buildClientSummaries — isCommercialClient (0012_clients_is_commercia
     expect(summaries.get("solo-cliente")).toMatchObject({ hasAccount: false, isCommercialClient: true });
     expect(summaries.get("ambos")).toMatchObject({ hasAccount: true, isCommercialClient: true });
     expect(summaries.get("ninguno")).toMatchObject({ hasAccount: false, isCommercialClient: false });
+  });
+});
+
+describe("ciclo Agregar cliente / Eliminar cliente para una cuenta XAYVEN (A → E → F)", () => {
+  it("A: cuenta sin cliente → B/E: 'Agregar cliente' promueve → F: 'Eliminar cliente' despromueve, misma fila todo el tiempo, la cuenta nunca se pierde", async () => {
+    // A. Registro de cuenta XAYVEN — is_commercial: false, como
+    //    linkAccountToClient() lo crea de verdad.
+    const client = await createPaymentsClient({
+      name: "Cuenta de prueba",
+      email: `ciclo-${Date.now()}@example.com`,
+      isCommercial: false,
+    });
+    const linkedClientIds = new Set([client.id]); // cuenta vinculada, fija durante todo el ciclo
+
+    let summary = buildClientSummaries({
+      clients: [client],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds,
+    }).get(client.id)!;
+    expect(summary).toMatchObject({ hasAccount: true, isCommercialClient: false }); // A
+
+    // E. "Agregar cliente" — misma primitiva que usa el botón real
+    //    (markClientAsCommercial), nunca crea una fila nueva.
+    const promoted = await markClientAsCommercial(client.id);
+    expect(promoted.id).toBe(client.id);
+
+    summary = buildClientSummaries({
+      clients: [promoted],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds,
+    }).get(client.id)!;
+    expect(summary).toMatchObject({ hasAccount: true, isCommercialClient: true }); // B
+
+    // F. "Eliminar cliente" para alguien CON cuenta — el endpoint real usa
+    //    markClientAsNonCommercial() en vez de deleteClient(); aquí se
+    //    prueba la primitiva directamente (el endpoint completo con su
+    //    branching por cuenta está cubierto en
+    //    api/admin/clients/[id]/__tests__/route.test.ts).
+    const downgraded = await markClientAsNonCommercial(client.id);
+    expect(downgraded.id).toBe(client.id); // misma fila, nunca una segunda
+
+    summary = buildClientSummaries({
+      clients: [downgraded],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds,
+    }).get(client.id)!;
+    expect(summary).toMatchObject({ hasAccount: true, isCommercialClient: false }); // de vuelta a A
+  });
+
+  it("C: cliente comercial SIN cuenta XAYVEN → hasAccount false, isCommercialClient true", async () => {
+    const client = await createPaymentsClient({
+      name: "Cliente comercial sin cuenta",
+      email: `sin-cuenta-${Date.now()}@example.com`,
+    }); // isCommercial default true, nunca vinculado a ningún profile
+
+    const summary = buildClientSummaries({
+      clients: [client],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(), // nadie vinculado
+    }).get(client.id)!;
+
+    expect(summary).toMatchObject({ hasAccount: false, isCommercialClient: true });
   });
 });
