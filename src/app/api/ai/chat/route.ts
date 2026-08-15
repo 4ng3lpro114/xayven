@@ -19,12 +19,36 @@ import {
 import { changeLeadStatus } from "@/lib/leads/leadStatus";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { hasLocale } from "@/lib/i18n/config";
+import { getPromotionById } from "@/lib/db/promotionStore";
+import { getEffectivePromotionStatus } from "@/lib/promotions/effectiveStatus";
+import { toPublicPromotion } from "@/lib/promotions/eligibility";
+import type { PublicPromotion } from "@/lib/promotions/types";
 import type { ChatMessage, Conversation } from "@/lib/db/types";
 
 export const runtime = "nodejs";
 
 const MAX_HISTORY_MESSAGES = 16; // sent to the model, oldest trimmed first
 const MAX_STORED_MESSAGES = 60; // hard cap on what a conversation keeps
+
+/**
+ * Fase 11 Etapa A — the ONLY place a promotion is ever treated as
+ * "currently active" for chat purposes. Never trusts the client's claim
+ * that a promotionId is valid/active — always re-fetches the real row and
+ * recomputes getEffectivePromotionStatus() itself (the same canonical
+ * function the admin UI and getEligibleActivePromotions() already use,
+ * never a second status calculation). A nonexistent, draft, scheduled,
+ * paused, expired, or archived promotion all resolve to `null` here —
+ * indistinguishable from "no promotion id was sent at all" to every
+ * caller, which is exactly the point: it can never produce a false
+ * attribution or leak into the prompt as if it were real.
+ */
+async function resolveActivePromotion(promotionId: string | undefined): Promise<PublicPromotion | null> {
+  if (!promotionId) return null;
+  const promotion = await getPromotionById(promotionId);
+  if (!promotion) return null;
+  if (getEffectivePromotionStatus(promotion, new Date()) !== "active") return null;
+  return toPublicPromotion(promotion);
+}
 
 /**
  * GET — lets the widget check whether XAYVEN AI is configured before
@@ -55,7 +79,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "validation_failed" }, { status: 400 });
   }
 
-  const { sessionId, message, locale: rawLocale } = parsed.data;
+  const { sessionId, message, locale: rawLocale, promotionId } = parsed.data;
   const locale = hasLocale(rawLocale) ? rawLocale : "es";
 
   const ip = getClientIp(request);
@@ -89,7 +113,28 @@ export async function POST(request: NextRequest) {
     consentStatus: conversation.consentStatus === "declined" ? "declined" : "granted",
   };
 
-  const systemPrompt = buildSystemPrompt(dict, locale);
+  // Fase 11 Etapa A — first-touch, sticky attribution: only ever set once
+  // per conversation, on the turn where the widget was opened via a
+  // promotion's CTA (see ChatWidget.tsx's consumePromotionContext()). A
+  // later message never overwrites an already-attributed conversation,
+  // even if it happens to carry a (different) promotionId — matches
+  // clientId/convertedAt's own "set once" discipline on this same table.
+  if (promotionId && !conversation.promotionId) {
+    const attributed = await resolveActivePromotion(promotionId);
+    if (attributed) {
+      conversation = { ...conversation, promotionId: attributed.id };
+    }
+  }
+
+  // Re-resolved on EVERY turn (not cached from the attribution step above)
+  // so the model only ever gets shown a promotion that's still genuinely
+  // active right now — a promotion attributed on turn 1 that got paused/
+  // archived before turn 3 simply stops appearing in the prompt from then
+  // on, while conversation.promotionId itself (the historical fact of
+  // where this lead came from, for Analytics) is never touched.
+  const activePromotion = await resolveActivePromotion(conversation.promotionId ?? undefined);
+
+  const systemPrompt = buildSystemPrompt(dict, locale, activePromotion);
   const history: AIMessage[] = conversation.messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({
     role: m.role,
     content: m.content,

@@ -1,6 +1,8 @@
 import "server-only";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 import { projects, getProjectCopy } from "@/lib/data/projects";
+import { formatPromotionDiscount } from "@/lib/promotions/format";
+import type { PublicPromotion } from "@/lib/promotions/types";
 import type { Locale } from "@/lib/i18n/config";
 
 const EXTRACTION_SHAPE = `{"visitorName":null,"visitorEmail":null,"visitorPhone":null,"company":null,"website":null,"projectType":null,"need":null,"goal":null,"budget":null,"urgency":null,"suggestedLeadStatus":null}`;
@@ -12,7 +14,34 @@ const EXTRACTION_SHAPE = `{"visitorName":null,"visitorEmail":null,"visitorPhone"
  * source of truth the model is allowed to draw on; see the HARD RULES
  * block for what it must never fabricate.
  */
-export function buildSystemPrompt(dict: Dictionary, locale: Locale): string {
+/**
+ * Fase 11 Etapa A: when the current conversation is attributed to a real,
+ * currently-active promotion (see /api/ai/chat/route.ts — always
+ * re-validated server-side against getEffectivePromotionStatus() right
+ * before this is called, never trusted stale), its PUBLIC-safe fields get
+ * folded into the prompt as one more real-data block — same "the ONLY
+ * facts you may state" discipline already applied to
+ * Services/Process/Portfolio/FAQ above. Only `text`/discount
+ * type-value-currency/`ctaLabel` ever reach here (PublicPromotion's own
+ * shape) — `name`/`audience`/`metadata`/`audienceRules` never exist on
+ * this type at all, so there's nothing admin-only to accidentally leak.
+ */
+function buildPromotionBlock(promotion: PublicPromotion, locale: Locale): string {
+  const dateFormat = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-CO", { dateStyle: "long" });
+  return `
+ACTIVE PROMOTION (this visitor's conversation started from this specific promotion)
+- Copy: "${promotion.text}"
+- Benefit: ${formatPromotionDiscount(promotion)}
+- Valid until: ${dateFormat.format(new Date(promotion.endAt))}
+Mention it naturally when relevant, using ONLY the copy/benefit above — never invent a different discount, never guarantee it applies beyond what's stated, never promise a lower price than this. This is the ONLY active promotion you know about for this conversation.
+`;
+}
+
+export function buildSystemPrompt(
+  dict: Dictionary,
+  locale: Locale,
+  activePromotion?: PublicPromotion | null
+): string {
   const servicesBlock = dict.services.items
     .map((s) => `- ${s.title}: ${s.summary} (${dict.services.fieldLabels.who}: ${s.who})`)
     .join("\n");
@@ -33,6 +62,7 @@ export function buildSystemPrompt(dict: Dictionary, locale: Locale): string {
   const faqBlock = dict.faq.items.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join("\n\n");
 
   const languageName = locale === "en" ? "English" : "Spanish";
+  const promotionBlock = activePromotion ? buildPromotionBlock(activePromotion, locale) : "";
 
   return `
 You are "XAYVEN AI", the commercial assistant embedded on the XAYVEN digital studio website (xayven.com). You speak as a native part of the XAYVEN product — never as a generic, off-the-shelf chatbot.
@@ -54,7 +84,7 @@ ${projectsBlock}
 
 FAQ:
 ${faqBlock}
-
+${promotionBlock}
 HARD RULES
 - Never invent clients, testimonials, statistics, conversion numbers, exact prices, guaranteed timelines, or capabilities not listed above.
 - Never quote a specific price. Costs depend on project scope; explain that XAYVEN will follow up with a real quote after understanding the project, and offer to note the request down.

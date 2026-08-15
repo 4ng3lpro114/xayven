@@ -37,6 +37,17 @@ export interface Conversation {
    *  NOT assume `clientId !== null` implies `convertedAt !== null`. */
   convertedAt: string | null;
 
+  /** Fase 11 Etapa A (0013_conversations_promotion_id.sql) — set at most
+   *  once, the first time a visitor opens the chat via a promotion's CTA
+   *  (first-touch, sticky — a later CTA click during the same
+   *  conversation never overwrites it). Server-validated before being
+   *  set (see /api/ai/chat/route.ts): only a promotion that is really
+   *  `getEffectivePromotionStatus() === "active"` at that moment can ever
+   *  be attributed, never a client-asserted claim taken at face value.
+   *  Null for the overwhelming majority of conversations, which never
+   *  originate from a promotion. */
+  promotionId: string | null;
+
   visitorName: string | null;
   visitorEmail: string | null;
   /** Only ever filled in if the visitor shares it voluntarily in the chat —

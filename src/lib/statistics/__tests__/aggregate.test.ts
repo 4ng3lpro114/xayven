@@ -23,10 +23,12 @@ import {
   buildAIConversationStats,
   buildMaintenanceStats,
   isLeadGeneratingConversation,
+  buildPromotionAttributionStats,
 } from "@/lib/statistics/aggregate";
 import { buildClientSummaries } from "@/lib/clients/summary";
 import type { Conversation, LeadStatusHistoryEntry, MaintenanceRequest } from "@/lib/db/types";
 import type { Client, Payment, Project } from "@/lib/payments/types";
+import type { Promotion } from "@/lib/promotions/types";
 
 const NOW = new Date("2026-08-12T12:00:00.000Z");
 
@@ -59,6 +61,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     messages: [],
     clientId: null,
     convertedAt: null,
+    promotionId: null,
     visitorName: null,
     visitorEmail: null,
     visitorPhone: null,
@@ -780,5 +783,71 @@ describe("buildMaintenanceStats", () => {
     const stats = buildMaintenanceStats([], []);
     expect(stats.totalAllTime).toBe(0);
     expect(stats.revenueByCurrency).toEqual({});
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Promociones (Fase 11 Etapa A)
+// ---------------------------------------------------------------------------
+
+function makePromotion(overrides: Partial<Promotion> = {}): Promotion {
+  return {
+    id: "promo-1",
+    createdAt: iso(0),
+    updatedAt: iso(0),
+    name: "Promoción de prueba",
+    text: "20% de descuento",
+    discountType: "percentage",
+    discountValue: 20,
+    currency: null,
+    startAt: iso(10),
+    endAt: iso(-10),
+    audience: "all",
+    status: "scheduled",
+    ctaLabel: "Quiero aprovecharla",
+    ctaMessage: null,
+    metadata: {},
+    audienceRules: null,
+    ...overrides,
+  };
+}
+
+describe("buildPromotionAttributionStats", () => {
+  it("K. sin ninguna conversación atribuida → todo en 0, no rompe nada existente", () => {
+    const stats = buildPromotionAttributionStats(
+      [makeConversation({ promotionId: null })],
+      [makePromotion()]
+    );
+    expect(stats.totalAttributedConversations).toBe(0);
+    expect(stats.entries).toEqual([]);
+  });
+
+  it("cuenta correctamente conversaciones atribuidas, agrupadas por promoción y ordenadas por conteo", () => {
+    const promoA = makePromotion({ id: "promo-a", name: "Promo A" });
+    const promoB = makePromotion({ id: "promo-b", name: "Promo B" });
+    const conversations = [
+      makeConversation({ id: "c1", promotionId: "promo-a" }),
+      makeConversation({ id: "c2", promotionId: "promo-a" }),
+      makeConversation({ id: "c3", promotionId: "promo-b" }),
+      makeConversation({ id: "c4", promotionId: null }), // no cuenta
+    ];
+
+    const stats = buildPromotionAttributionStats(conversations, [promoA, promoB]);
+
+    expect(stats.totalAttributedConversations).toBe(3);
+    expect(stats.entries).toEqual([
+      { promotionId: "promo-a", label: "Promo A", conversationsCount: 2 },
+      { promotionId: "promo-b", label: "Promo B", conversationsCount: 1 },
+    ]);
+  });
+
+  it("promotion_id que no corresponde a ninguna promoción conocida → fallback explícito, nunca inventa un nombre", () => {
+    const conversations = [makeConversation({ id: "c1", promotionId: "promo-desconocida" })];
+
+    const stats = buildPromotionAttributionStats(conversations, []);
+
+    expect(stats.entries).toEqual([
+      { promotionId: "promo-desconocida", label: "Promoción no encontrada", conversationsCount: 1 },
+    ]);
   });
 });

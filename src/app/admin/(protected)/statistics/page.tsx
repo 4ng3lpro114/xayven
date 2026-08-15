@@ -17,7 +17,9 @@ import {
   buildRevenueByPaymentType,
   buildAIConversationStats,
   buildMaintenanceStats,
+  buildPromotionAttributionStats,
 } from "@/lib/statistics/aggregate";
+import { listPromotions } from "@/lib/db/promotionStore";
 import { buildConversionVelocityStats } from "@/lib/statistics/conversionVelocity";
 import { buildLeadActivityStats } from "@/lib/statistics/leadActivity";
 import { PROJECT_WORK_STAGE_LABELS_ES } from "@/lib/statistics/projectStages";
@@ -32,6 +34,7 @@ import { FunnelEvolutionChart } from "@/components/admin/statistics/FunnelEvolut
 import { ConversionVelocityCard } from "@/components/admin/statistics/ConversionVelocityCard";
 import { RevenueByGroupTable } from "@/components/admin/statistics/RevenueByGroupTable";
 import { SourcesPlaceholder } from "@/components/admin/statistics/SourcesPlaceholder";
+import { PromotionAttributionSummary } from "@/components/admin/statistics/PromotionAttributionSummary";
 import { StatisticsTabs, isValidStatisticsTab, type StatisticsTab } from "@/components/admin/statistics/StatisticsTabs";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
@@ -163,7 +166,7 @@ export default async function AdminStatisticsPage({ searchParams }: PageProps) {
           <IATab snapshot={snapshot} aiStats={aiStats} periodPhrase={periodPhrase} />
         )}
         {tab === "mantenimiento" && <MantenimientoTab payments={payments} />}
-        {tab === "fuentes" && <SourcesPlaceholder />}
+        {tab === "fuentes" && <FuentesTab conversations={conversations} />}
       </div>
     </div>
   );
@@ -752,6 +755,37 @@ async function MantenimientoTab({ payments }: { payments: Awaited<ReturnType<typ
         <p className="text-2xl font-semibold text-fg">
           <MoneyByCurrencyValue byCurrency={stats.revenueByCurrency} />
         </p>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fuentes (Fase 11 Etapa A — promociones reales; UTM/referrer/país siguen
+// sin implementar, ver SourcesPlaceholder)
+// ---------------------------------------------------------------------------
+
+async function FuentesTab({ conversations }: { conversations: Awaited<ReturnType<typeof listConversations>> }) {
+  // listPromotions() solo se pide para esta pestaña — misma disciplina de
+  // "solo la pestaña activa pide su dato extra" que Funnel/Velocidad/
+  // Mantenimiento ya usan.
+  const promotions = await listPromotions({ limit: AGGREGATION_LIMIT });
+  const promotionStats = buildPromotionAttributionStats(conversations, promotions);
+
+  return (
+    <>
+      <h2 className="text-lg font-semibold text-fg">Promociones</h2>
+      <p className="mt-1 max-w-2xl text-sm text-fg-muted">
+        Basado en <code>conversations.promotion_id</code> — conversaciones que se originaron
+        pulsando el CTA de una promoción activa (Fase 11 Etapa A).
+      </p>
+      <div className="mt-4">
+        <PromotionAttributionSummary stats={promotionStats} />
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold text-fg">Fuentes</h2>
+      <div className="mt-4">
+        <SourcesPlaceholder />
       </div>
     </>
   );

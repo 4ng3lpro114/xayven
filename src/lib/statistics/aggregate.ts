@@ -24,6 +24,8 @@ import type {
   ProjectsStats,
   ProjectsTimeSeries,
   ProjectWorkStage,
+  PromotionAttributionEntry,
+  PromotionAttributionStats,
   RevenueByClientStats,
   RevenueByGroupEntry,
   RevenueByPaymentTypeStats,
@@ -35,6 +37,7 @@ import type {
   TimeSeriesPoint,
 } from "@/lib/statistics/types";
 import { STATISTICS_PERIODS } from "@/lib/statistics/types";
+import type { Promotion } from "@/lib/promotions/types";
 
 /**
  * Fase 7B — agregación de estadísticas. Puro, sin I/O (mismo patrón que
@@ -798,6 +801,45 @@ export function buildRevenueByPaymentType(payments: Payment[]): RevenueByPayment
   }
 
   return { byType };
+}
+
+// ---- Promotions (Fase 11 Etapa A) ---------------------------------------
+
+/**
+ * Minimal Analytics V2 integration for Fase 11 Etapa A — "Promoción →
+ * Conversación" only. Same bulk-fetch + in-memory reduce shape as
+ * buildRevenueByProject/buildRevenueByClient above (grouping by an id,
+ * looking up its label from a second already-fetched list) — no new
+ * aggregation pattern introduced.
+ *
+ * Deliberately does NOT compute revenue, conversion rate, or any
+ * Promoción → Proyecto figure — `conversations.promotion_id` is the only
+ * attribution FK that exists today (see 0013_conversations_promotion_id.sql);
+ * `projects` has no equivalent column yet. That's Etapa B, not this.
+ */
+export function buildPromotionAttributionStats(
+  conversations: Conversation[],
+  promotions: Promotion[]
+): PromotionAttributionStats {
+  const nameById = new Map(promotions.map((p) => [p.id, p.name]));
+  const countByPromotion = new Map<string, number>();
+
+  let totalAttributedConversations = 0;
+  for (const c of conversations) {
+    if (!c.promotionId) continue;
+    totalAttributedConversations += 1;
+    countByPromotion.set(c.promotionId, (countByPromotion.get(c.promotionId) ?? 0) + 1);
+  }
+
+  const entries: PromotionAttributionEntry[] = [...countByPromotion.entries()]
+    .map(([promotionId, conversationsCount]) => ({
+      promotionId,
+      label: nameById.get(promotionId) ?? "Promoción no encontrada",
+      conversationsCount,
+    }))
+    .sort((a, b) => b.conversationsCount - a.conversationsCount);
+
+  return { totalAttributedConversations, entries };
 }
 
 // ---- IA / Conversaciones -------------------------------------------------

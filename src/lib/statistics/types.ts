@@ -317,6 +317,30 @@ export interface RevenueByPaymentTypeStats {
   byType: Record<PaymentType, MoneyByCurrency>;
 }
 
+// ---- Promotions (Fase 11 Etapa A) ---------------------------------------
+
+export interface PromotionAttributionEntry {
+  promotionId: string;
+  /** The promotion's internal `name` — fine here since this only ever
+   *  renders inside /admin/statistics (admin-only), unlike PublicPromotion
+   *  which deliberately never exposes it. */
+  label: string;
+  conversationsCount: number;
+}
+
+/**
+ * Minimal Etapa A integration — deliberately NOT period-scoped (same
+ * "todo el tiempo" reasoning already used for the Velocidad tab: with
+ * counts this small, cutting by period would only lose representativeness
+ * without gaining anything real). Revenue/conversion-rate attribution
+ * (Promoción → Proyecto → ingreso) is explicitly Etapa B, not built here —
+ * see the module comment on buildPromotionAttributionStats().
+ */
+export interface PromotionAttributionStats {
+  totalAttributedConversations: number;
+  entries: PromotionAttributionEntry[];
+}
+
 // ---- AI / Conversaciones -------------------------------------------------
 
 export const PAYMENT_TYPE_LABELS_ES: Record<PaymentType, string> = {

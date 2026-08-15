@@ -58,6 +58,18 @@ export const chatTurnSchema = z.object({
     .regex(/^[a-zA-Z0-9-]+$/),
   message: z.string().trim().min(1).max(2000),
   locale: z.enum(["es", "en"]),
+  /**
+   * Fase 11 Etapa A — only ever sent by ChatWidget's own promotion-CTA
+   * handoff (see clientSession.ts's setPromotionContext/
+   * consumePromotionContext), never a regular typed message. A
+   * well-formed but non-existent/inactive id is NOT a validation error —
+   * the route re-validates it server-side and silently skips attribution
+   * rather than failing the whole turn over a stale/tampered id (see
+   * /api/ai/chat/route.ts). Malformed non-UUID input IS rejected here,
+   * since that can only mean a bug or tampering, never a legitimate late
+   * promotion.
+   */
+  promotionId: z.string().uuid().optional(),
 });
 
 export type ChatTurnInput = z.infer<typeof chatTurnSchema>;

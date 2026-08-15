@@ -9,6 +9,7 @@ import { ChatMessageBubble, ChatThinkingBubble, type UIMessage } from "@/compone
 import {
   getOrCreateSessionId,
   consumeDiagnosisContext,
+  consumePromotionContext,
   OPEN_CHAT_EVENT,
 } from "@/lib/ai/clientSession";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,19 @@ export function ChatWidget({
     if (!open) return;
     if (!diagnosisHandled.current) {
       diagnosisHandled.current = true;
+      // Fase 11 Etapa A: checked first — in practice a visitor only ever
+      // triggers one handoff (promotion CTA OR the diagnosis tool) before
+      // opening the chat, never both, but the two live in separate
+      // sessionStorage keys (see clientSession.ts) so checking one never
+      // has to know about the other's shape.
+      const promotionContext = consumePromotionContext();
+      if (promotionContext) {
+        window.setTimeout(
+          () => void sendMessage(promotionContext.message, promotionContext.promotionId),
+          400
+        );
+        return;
+      }
       const context = consumeDiagnosisContext();
       if (context) {
         // Small delay so the greeting renders first, then the handoff
@@ -84,7 +98,7 @@ export function ChatWidget({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, promotionId?: string) {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
@@ -97,7 +111,17 @@ export function ChatWidget({
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: sessionIdRef.current, message: trimmed, locale }),
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          message: trimmed,
+          locale,
+          // Only ever present on the one auto-sent turn right after
+          // opening via a promotion's CTA — every regular typed message
+          // (including the rest of this same conversation) omits it
+          // entirely, since attribution only needs to happen once (see
+          // /api/ai/chat/route.ts's "first-touch, sticky" comment).
+          ...(promotionId ? { promotionId } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;

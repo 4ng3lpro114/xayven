@@ -48,6 +48,7 @@ function createEmptyConversation(sessionId: string, locale: Locale): Conversatio
     messages: [],
     clientId: null,
     convertedAt: null,
+    promotionId: null,
     visitorName: null,
     visitorEmail: null,
     visitorPhone: null,
@@ -79,6 +80,7 @@ interface ConversationRow {
   messages: ChatMessage[];
   client_id: string | null;
   converted_at: string | null;
+  promotion_id: string | null;
   visitor_name: string | null;
   visitor_email: string | null;
   visitor_phone: string | null;
@@ -106,6 +108,7 @@ function rowToConversation(row: ConversationRow): Conversation {
     messages: row.messages ?? [],
     clientId: row.client_id,
     convertedAt: row.converted_at,
+    promotionId: row.promotion_id,
     visitorName: row.visitor_name,
     visitorEmail: row.visitor_email,
     visitorPhone: row.visitor_phone,
@@ -243,6 +246,7 @@ export async function saveConversation(conversation: Conversation): Promise<Conv
       status: updated.status,
       client_id: updated.clientId,
       converted_at: updated.convertedAt,
+      promotion_id: updated.promotionId,
       visitor_name: updated.visitorName,
       visitor_email: updated.visitorEmail,
       visitor_phone: updated.visitorPhone,

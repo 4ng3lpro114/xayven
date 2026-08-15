@@ -4,6 +4,7 @@ import "../globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChatWidget } from "@/components/ai/ChatWidget";
+import { PromotionBanner } from "@/components/promotions/PromotionBanner";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { hasLocale, locales, type Locale } from "@/lib/i18n/config";
 import { buildMetadata } from "@/lib/seo";
@@ -95,6 +96,7 @@ export default async function LocaleLayout({
         >
           {dict.skipToContent}
         </a>
+        <PromotionBanner />
         <Header
           locale={locale}
           labels={{

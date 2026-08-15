@@ -58,6 +58,48 @@ export function consumeDiagnosisContext(): string | null {
   }
 }
 
+const PROMOTION_CONTEXT_KEY = "xayven_promotion_context";
+
+export interface PromotionContext {
+  promotionId: string;
+  /** The first message ChatWidget auto-sends on the visitor's behalf —
+   *  same role `computeDiagnosisResult()`'s context text plays for
+   *  setDiagnosisContext() above, just sourced from the promotion's own
+   *  `ctaMessage`/`text` instead (see PromotionCtaButton.tsx). */
+  message: string;
+}
+
+/** Same one-shot sessionStorage handoff as setDiagnosisContext()/
+ *  consumeDiagnosisContext() above — a SEPARATE key, not reusing the
+ *  diagnosis one, since the two contexts carry different shapes (this one
+ *  needs the promotion id alongside the message, for real attribution —
+ *  see ChatWidget.tsx and /api/ai/chat/route.ts). Never both set at once
+ *  in practice (only one CTA is ever clicked before opening the chat),
+ *  but kept as two independent keys regardless so neither handoff can
+ *  accidentally clobber the other. */
+export function setPromotionContext(context: PromotionContext) {
+  try {
+    window.sessionStorage.setItem(PROMOTION_CONTEXT_KEY, JSON.stringify(context));
+  } catch {
+    // Ignore — same "nice-to-have, not critical" reasoning as
+    // setDiagnosisContext() above; the promotion is still visible on the
+    // page even if this handoff silently fails.
+  }
+}
+
+export function consumePromotionContext(): PromotionContext | null {
+  try {
+    const raw = window.sessionStorage.getItem(PROMOTION_CONTEXT_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(PROMOTION_CONTEXT_KEY);
+    const parsed = JSON.parse(raw) as Partial<PromotionContext>;
+    if (typeof parsed.promotionId !== "string" || typeof parsed.message !== "string") return null;
+    return { promotionId: parsed.promotionId, message: parsed.message };
+  } catch {
+    return null;
+  }
+}
+
 export const OPEN_CHAT_EVENT = "xayven:open-chat";
 
 /** Lets any component (e.g. the diagnosis tool) open the chat widget
