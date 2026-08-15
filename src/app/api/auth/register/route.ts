@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  const limit = rateLimit(`auth-register:ip:${ip}`, { limit: 5, windowMs: 10 * 60 * 1000 });
+  const limit = rateLimit(`auth-register:ip:${ip}`, { limit: 15, windowMs: 10 * 60 * 1000 });
   if (!limit.allowed) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },

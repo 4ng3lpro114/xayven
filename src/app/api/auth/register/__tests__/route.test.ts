@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { SITE_URL } from "@/lib/constants";
 
@@ -349,5 +349,71 @@ describe("POST /api/auth/register", () => {
     expect(errorSpy).toHaveBeenCalled();
 
     errorSpy.mockRestore();
+  });
+});
+
+/**
+ * Cobertura dedicada al límite de /api/auth/register (15/10min, subido
+ * desde 5/10min). IP fija y exclusiva de este bloque (rango de
+ * documentación RFC 5737, nunca usado por el ipCounter de arriba) para
+ * poder ejercer el límite real de 15 dentro de un mismo test, sin
+ * interferir con — ni ser interferido por — los demás tests de este
+ * archivo (cada uno usa su propia IP vía ipCounter precisamente para
+ * evitar esto).
+ */
+describe("rate limiting de /api/auth/register — nuevo límite 15/10min", () => {
+  beforeEach(() => {
+    isClientAuthConfiguredMock.mockReset();
+    signUpMock.mockReset();
+    linkAccountToClientMock.mockReset();
+    isClientAuthConfiguredMock.mockReturnValue(true);
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "rl-register@example.com" }, session: { access_token: "t" } },
+      error: null,
+    });
+    linkAccountToClientMock.mockResolvedValue({ clientId: "client-1", clientWasCreated: true });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function fixedIpRegisterRequest(): NextRequest {
+    return new NextRequest("http://localhost/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.99" },
+      body: JSON.stringify({
+        fullName: "Rate Limit Test",
+        email: "rl-register@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      }),
+    });
+  }
+
+  it("1-2. permite los primeros 15 requests, bloquea el 16º con 429", async () => {
+    for (let i = 0; i < 15; i++) {
+      const res = await POST(fixedIpRegisterRequest());
+      expect(res.status).toBe(200);
+    }
+
+    const blocked = await POST(fixedIpRegisterRequest());
+    expect(blocked.status).toBe(429);
+    const body = await blocked.json();
+    expect(body.error).toBe("rate_limited");
+  });
+
+  it("3. tras 10 minutos + 1ms, el bucket se reinicia y vuelve a permitir requests", async () => {
+    for (let i = 0; i < 15; i++) {
+      await POST(fixedIpRegisterRequest());
+    }
+    const blocked = await POST(fixedIpRegisterRequest());
+    expect(blocked.status).toBe(429);
+
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+
+    const afterWindow = await POST(fixedIpRegisterRequest());
+    expect(afterWindow.status).toBe(200);
   });
 });

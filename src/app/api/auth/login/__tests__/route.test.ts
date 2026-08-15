@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const isClientAuthConfiguredMock = vi.fn();
@@ -69,5 +69,50 @@ describe("POST /api/auth/login", () => {
 
     expect(res.status).toBe(400);
     expect(signInWithPasswordMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Confirma que el límite de login (8/10min) permanece exactamente igual
+ * tras el cambio de límite de /api/auth/register a 15/10min — bucket y
+ * clave distintos (auth-login:ip:* vs auth-register:ip:*), sin relación
+ * entre ambos. IP fija y exclusiva de este bloque (rango de
+ * documentación RFC 5737, nunca usado por ipCounter arriba) para poder
+ * ejercer el límite real dentro de un mismo test.
+ */
+describe("rate limiting de /api/auth/login — no debe cambiar", () => {
+  beforeEach(() => {
+    isClientAuthConfiguredMock.mockReset();
+    signInWithPasswordMock.mockReset();
+    isClientAuthConfiguredMock.mockReturnValue(true);
+    signInWithPasswordMock.mockResolvedValue({
+      data: { session: { access_token: "t" } },
+      error: null,
+    });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function fixedIpLoginRequest(): NextRequest {
+    return new NextRequest("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.199" },
+      body: JSON.stringify({ email: "rl-login@example.com", password: "correcta" }),
+    });
+  }
+
+  it("permite exactamente 8 requests y bloquea el 9º con 429 — límite intacto", async () => {
+    for (let i = 0; i < 8; i++) {
+      const res = await POST(fixedIpLoginRequest());
+      expect(res.status).toBe(200);
+    }
+
+    const blocked = await POST(fixedIpLoginRequest());
+    expect(blocked.status).toBe(429);
+    const body = await blocked.json();
+    expect(body.error).toBe("rate_limited");
   });
 });
