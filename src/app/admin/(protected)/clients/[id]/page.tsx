@@ -4,11 +4,14 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
+import { listLinkedProfileClientIds } from "@/lib/db/profilesStore";
 import { buildClientSummaries } from "@/lib/clients/summary";
 import { buildActivityFeed } from "@/lib/clients/activity";
 import { getClientProtectionReason } from "@/lib/clients/importance";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
 import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
+import { AccountStatusBadge } from "@/components/admin/AccountStatusBadge";
+import { CommercialStatusBadge } from "@/components/admin/CommercialStatusBadge";
 import { ClientActions } from "@/components/admin/ClientActions";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { formatMoney } from "@/lib/payments/format";
@@ -42,7 +45,7 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
   const client = await getClientById(id);
   if (!client) notFound();
 
-  const [conversations, projects, payments, convertedContactRequests] = await Promise.all([
+  const [conversations, projects, payments, convertedContactRequests, linkedClientIds] = await Promise.all([
     listConversations({ clientId: client.id, limit: RELATIONS_LIMIT }),
     listProjects({ clientId: client.id }),
     listPayments({ clientId: client.id, limit: RELATIONS_LIMIT }),
@@ -50,6 +53,10 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
     // in-memory-filter technique as the rest of this codebase (Fase 5C
     // Etapa 12). Only "converted" is relevant for Estado="Cliente" below.
     listContactRequests({ status: "converted", limit: RELATIONS_LIMIT }),
+    // Real profiles.client_id relationship — see "Cuenta XAYVEN" below.
+    // Was missing on this page until now (only the list view had it) —
+    // needed to render "Cuenta XAYVEN: Activa/Inactiva" here.
+    listLinkedProfileClientIds(),
   ]);
   const contactRequests = convertedContactRequests.filter((r) => r.clientId === client.id);
 
@@ -59,6 +66,7 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
     projects,
     payments,
     contactRequests,
+    linkedClientIds,
   }).get(client.id)!;
 
   const activityFeed = buildActivityFeed({ conversations, projects, payments }).slice(
@@ -101,11 +109,34 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
           {company && <p className="mt-1 text-sm text-fg-muted">{company}</p>}
           <p className="mt-1 text-sm text-fg-muted">
             {client.email}
-            {client.phone && ` · ${client.phone}`} · Cliente desde{" "}
+            {client.phone && ` · ${client.phone}`} ·{" "}
+            {summary.isCommercialClient ? "Cliente desde" : "Registrado desde"}{" "}
             {new Date(client.createdAt).toLocaleDateString("es-CO")}
           </p>
+          {/* "Cuenta XAYVEN" (acceso al portal) y "Cliente" (es cliente
+           *  comercial de verdad) son dos conceptos independientes —
+           *  0012_clients_is_commercial.sql — mostrados explícitamente por
+           *  separado como dos filas etiqueta+valor, nunca fusionados en
+           *  una sola frase ni implicando que una depende de la otra. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-fg-subtle">Cuenta XAYVEN</span>
+              <AccountStatusBadge active={summary.hasAccount} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-fg-subtle">Cliente</span>
+              <CommercialStatusBadge isCommercial={summary.isCommercialClient} />
+            </div>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {summary.leadStatus && <LeadStatusBadge status={summary.leadStatus} />}
+            {/* leadStatus === "client" ya queda comunicado por
+             *  CommercialStatusBadge arriba — mostrarlo también aquí sería
+             *  el mismo hecho duplicado. El resto de estados
+             *  (interesado/explorando/caliente/soporte) sí es información
+             *  nueva y se sigue mostrando igual que siempre. */}
+            {summary.leadStatus && summary.leadStatus !== "client" && (
+              <LeadStatusBadge status={summary.leadStatus} />
+            )}
             <ClientImportanceBadge importance={summary.importance} />
           </div>
         </div>
@@ -113,6 +144,7 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
           clientId={client.id}
           importance={summary.importance}
           protectedReason={protectedReason}
+          isCommercial={summary.isCommercialClient}
         />
       </div>
 
