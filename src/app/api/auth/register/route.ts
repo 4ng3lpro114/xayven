@@ -5,6 +5,7 @@ import { registerSchema } from "@/lib/auth/schemas";
 import { createSupabaseServerClient, isClientAuthConfigured } from "@/lib/auth/supabaseServer";
 import { defaultLocale, hasLocale } from "@/lib/i18n/config";
 import { SITE_URL } from "@/lib/constants";
+import { linkAccountToClient } from "@/lib/auth/accountClientLink";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,20 @@ export const runtime = "nodejs";
  * used, defaulting to defaultLocale otherwise — never a free-form value,
  * so there's no way for a caller to redirect the confirmation link
  * anywhere else.
+ *
+ * "Una cuenta cliente = un cliente XAYVEN": once signUp() succeeds (the
+ * profiles row already exists at this point — handle_new_user() creates
+ * it transactionally before signUp() ever returns), linkAccountToClient()
+ * finds-or-creates the matching public.clients row by normalized email
+ * and sets profiles.client_id — see that function's doc comment for the
+ * full design. Its input here is built ONLY from this request's own
+ * server-verified `data.user.id`/`parsed.data.fullName`/
+ * `parsed.data.email` — never a client-suppliable client_id, which this
+ * schema doesn't even have a field for. A failure here is deliberately
+ * non-fatal to the registration response: the auth.users/profiles rows
+ * already exist and are never rolled back or reported as failed just
+ * because the secondary client-linking step had a problem — it's logged
+ * server-side (never in the HTTP response) for follow-up instead.
  */
 export async function POST(request: NextRequest) {
   if (!isClientAuthConfigured()) {
@@ -102,6 +117,23 @@ export async function POST(request: NextRequest) {
       ? "email_in_use"
       : "register_failed";
     return NextResponse.json({ ok: false, error: code }, { status });
+  }
+
+  if (data.user?.id) {
+    try {
+      await linkAccountToClient({
+        userId: data.user.id,
+        fullName: parsed.data.fullName,
+        email: parsed.data.email,
+      });
+    } catch (linkError) {
+      // Non-fatal by design (see doc comment above): the account itself
+      // was created successfully — never undo that or report a false
+      // failure over a secondary linking problem. Never forwarded to the
+      // HTTP response; server-side log only, no internal details leak to
+      // the caller.
+      console.error("[auth/register] linkAccountToClient failed:", linkError);
+    }
   }
 
   return NextResponse.json({

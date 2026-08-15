@@ -13,12 +13,22 @@ import { SITE_URL } from "@/lib/constants";
  */
 const isClientAuthConfiguredMock = vi.fn();
 const signUpMock = vi.fn();
+const linkAccountToClientMock = vi.fn();
 
 vi.mock("@/lib/auth/supabaseServer", () => ({
   isClientAuthConfigured: () => isClientAuthConfiguredMock(),
   createSupabaseServerClient: async () => ({
     auth: { signUp: signUpMock },
   }),
+}));
+
+// Client-linking ("Cuenta XAYVEN → Cliente") has its own dedicated
+// coverage in accountClientLink.test.ts — here it's mocked at the module
+// boundary, same as supabaseServer above, so these tests stay focused on
+// route-level behavior: is it called with the right (server-verified)
+// arguments, and does its failure stay non-fatal to the HTTP response.
+vi.mock("@/lib/auth/accountClientLink", () => ({
+  linkAccountToClient: (...args: unknown[]) => linkAccountToClientMock(...args),
 }));
 
 import { POST } from "../route";
@@ -44,7 +54,9 @@ describe("POST /api/auth/register", () => {
   beforeEach(() => {
     isClientAuthConfiguredMock.mockReset();
     signUpMock.mockReset();
+    linkAccountToClientMock.mockReset();
     isClientAuthConfiguredMock.mockReturnValue(true);
+    linkAccountToClientMock.mockResolvedValue({ clientId: "client-1", clientWasCreated: true });
   });
 
   it("no configurado (sin SUPABASE_ANON_KEY) → 503", async () => {
@@ -90,6 +102,14 @@ describe("POST /api/auth/register", () => {
         emailRedirectTo: `${SITE_URL}/auth/callback?locale=es`,
       },
     });
+    // "Cuenta XAYVEN → Cliente": se invoca con el id real devuelto por
+    // Supabase Auth y los mismos datos ya validados — nunca un client_id
+    // proporcionado por el caller (este payload ni siquiera tiene ese campo).
+    expect(linkAccountToClientMock).toHaveBeenCalledWith({
+      userId: "u1",
+      fullName: "Diana Pérez",
+      email: "diana@example.com",
+    });
   });
 
   it("registro válido, confirmación de email requerida (sin sesión todavía) → 200, sessionActive false", async () => {
@@ -111,6 +131,13 @@ describe("POST /api/auth/register", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.sessionActive).toBe(false);
+    // La vinculación no depende de que exista sesión activa — solo de que
+    // auth.users/profiles ya existan, y ya existen apenas signUp() resuelve.
+    expect(linkAccountToClientMock).toHaveBeenCalledWith({
+      userId: "u1",
+      fullName: "Diana Pérez",
+      email: "diana@example.com",
+    });
   });
 
   it("contraseñas distintas → 400 passwords_dont_match, nunca llama a Supabase", async () => {
@@ -180,6 +207,8 @@ describe("POST /api/auth/register", () => {
     const body = await res.json();
     expect(body.error).toBe("email_in_use");
     expect(JSON.stringify(body)).not.toContain("already registered");
+    // Sin auth.users creado, no hay nada que vincular.
+    expect(linkAccountToClientMock).not.toHaveBeenCalled();
   });
 
   it("payload sin role/client_id — el schema no los acepta como campos válidos, se ignoran", async () => {
@@ -209,6 +238,16 @@ describe("POST /api/auth/register", () => {
         emailRedirectTo: `${SITE_URL}/auth/callback?locale=es`,
       },
     });
+    // Tampoco a linkAccountToClient — su único cliente elegible viene de
+    // buscar/crear por el email real, nunca de un client_id del body.
+    expect(linkAccountToClientMock).toHaveBeenCalledWith({
+      userId: "u1",
+      fullName: "Diana Pérez",
+      email: "diana@example.com",
+    });
+    const callArgs = linkAccountToClientMock.mock.calls[0][0];
+    expect(callArgs).not.toHaveProperty("clientId");
+    expect(callArgs).not.toHaveProperty("client_id");
   });
 
   it("locale='es' → emailRedirectTo incluye ?locale=es", async () => {
@@ -280,5 +319,35 @@ describe("POST /api/auth/register", () => {
     const [[callArgs]] = signUpMock.mock.calls;
     expect(callArgs.options.emailRedirectTo).toBe(`${SITE_URL}/auth/callback?locale=es`);
     expect(callArgs.options.emailRedirectTo).not.toContain("evil.example.com");
+  });
+
+  it("linkAccountToClient falla → el registro igual responde 200 ok:true, el error nunca llega a la respuesta HTTP", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "diana@example.com" }, session: { access_token: "t" } },
+      error: null,
+    });
+    linkAccountToClientMock.mockRejectedValue(
+      new Error("[profiles] setProfileClientId failed: 42501 permission denied")
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.sessionActive).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("permission denied");
+    expect(JSON.stringify(body)).not.toContain("setProfileClientId");
+    expect(errorSpy).toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 });
