@@ -284,3 +284,60 @@ describe("buildClientSummaries — leadStatus derivado de Solicitud → Cliente 
     expect(summaries.get("client-1")!.importance).toBe("normal");
   });
 });
+
+describe("buildClientSummaries — hasAccount (linkedClientIds)", () => {
+  it("omitir linkedClientIds conserva el comportamiento por defecto: hasAccount siempre false", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+    });
+    expect(summaries.get("client-1")!.hasAccount).toBe(false);
+  });
+
+  it("client.id presente en linkedClientIds → hasAccount true", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["client-1"]),
+    });
+    expect(summaries.get("client-1")!.hasAccount).toBe(true);
+  });
+
+  it("client.id AUSENTE de linkedClientIds → hasAccount false, aunque el set no esté vacío", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["otro-client-id"]),
+    });
+    expect(summaries.get("client-1")!.hasAccount).toBe(false);
+  });
+
+  it("no mezcla clientes — el linkedClientIds de un cliente no afecta a otro", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient({ id: "client-1" }), makeClient({ id: "client-2", email: "otro@example.com" })],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["client-2"]),
+    });
+    expect(summaries.get("client-1")!.hasAccount).toBe(false);
+    expect(summaries.get("client-2")!.hasAccount).toBe(true);
+  });
+
+  it("hasAccount no influye en importance — sigue derivándose solo de leadScore/leadStatus/proyectos/pagos", () => {
+    const summaries = buildClientSummaries({
+      clients: [makeClient()],
+      conversations: [],
+      projects: [],
+      payments: [],
+      linkedClientIds: new Set(["client-1"]),
+    });
+    expect(summaries.get("client-1")!.importance).toBe("normal");
+  });
+});

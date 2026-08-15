@@ -43,3 +43,31 @@ export async function setProfileClientId(userId: string, clientId: string): Prom
     );
   }
 }
+
+/**
+ * Read-only: the set of `clients.id` values that currently have an XAYVEN
+ * account linked (`profiles.client_id IS NOT NULL`) — used exclusively for
+ * display (see /admin/clients' "Cuenta" column and
+ * src/lib/clients/summary.ts's `hasAccount`). Never used to make any
+ * security/write decision, and never a second deduplication mechanism —
+ * it only reads the real `profiles.client_id` relationship that
+ * linkAccountToClient() already establishes; it doesn't infer anything
+ * from name/email matching.
+ *
+ * Uses the service role like every other admin-only bulk read in this
+ * project (listClients/listProjects/listPayments in paymentsStore.ts) —
+ * `profiles` has no SELECT policy for this, by design, so this is the
+ * only way to read it in bulk. Fails soft (empty set) rather than
+ * throwing when the service role isn't configured, matching those same
+ * read functions' resilience — this is a display concern, not a
+ * security boundary (that boundary is RLS on `profiles` itself,
+ * untouched by this function).
+ */
+export async function listLinkedProfileClientIds(): Promise<Set<string>> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return new Set();
+
+  const { data } = await supabase.from("profiles").select("client_id").not("client_id", "is", null);
+
+  return new Set((data ?? []).map((row) => row.client_id as string));
+}

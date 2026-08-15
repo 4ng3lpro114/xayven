@@ -45,6 +45,11 @@ export interface ClientSummary {
   hasProjects: boolean;
   hasPayments: boolean;
   importance: ClientImportance;
+  /** True when this client has a real XAYVEN account linked
+   *  (profiles.client_id = this client's id) — see the `linkedClientIds`
+   *  param below. Never inferred from name/email matching; purely a
+   *  read of the same relationship linkAccountToClient() establishes. */
+  hasAccount: boolean;
 }
 
 function groupById<T>(items: T[], keyOf: (item: T) => string): Map<string, T[]> {
@@ -92,6 +97,15 @@ export function buildClientSummaries(params: {
    * clientId contribute; see `convertedContactRequestClientIds` below.
    */
   contactRequests?: ContactRequest[];
+  /**
+   * Optional — omitted callers (existing tests, the client detail page,
+   * statistics/aggregate.ts) keep today's exact behavior (hasAccount
+   * always false). The set of `clients.id` values that have a real
+   * `profiles.client_id` link — see listLinkedProfileClientIds()
+   * (src/lib/db/profilesStore.ts). Purely a membership check against
+   * this set; no name/email inference, no new deduplication logic.
+   */
+  linkedClientIds?: Set<string>;
 }): Map<string, ClientSummary> {
   const conversationsByClient = groupById(
     params.conversations.filter((c) => c.clientId !== null),
@@ -162,6 +176,7 @@ export function buildClientSummaries(params: {
       hasProjects,
       hasPayments,
       importance,
+      hasAccount: params.linkedClientIds?.has(client.id) ?? false,
     });
   }
 

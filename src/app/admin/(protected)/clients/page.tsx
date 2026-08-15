@@ -2,9 +2,11 @@ import Link from "next/link";
 import { listClients, listProjects, listPayments } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
+import { listLinkedProfileClientIds } from "@/lib/db/profilesStore";
 import { buildClientSummaries, type ClientSummary } from "@/lib/clients/summary";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
 import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge";
+import { AccountBadge } from "@/components/admin/AccountBadge";
 import { formatMoney } from "@/lib/payments/format";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,18 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "with_payments", label: "Con pagos" },
 ];
 
+/** Independent second filter dimension — combines with FILTERS above via
+ *  AND (both must match), never replaces it. "Con cuenta" + "Sin
+ *  proyecto" is expressed as two separate query params (account=with +
+ *  filter=... — there's no "sin proyecto" in FILTERS today, but the
+ *  mechanism is the same one "with_project" already uses), not a new
+ *  combined enum. */
+const ACCOUNT_FILTERS: { key: string; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "with", label: "Con cuenta" },
+  { key: "without", label: "Sin cuenta" },
+];
+
 /** Reuses conversations.lead_status as-is — no second, independent client
  *  status is introduced. "Con proyecto"/"Con pagos" are separate, simple
  *  boolean filters, not merged into lead_status. */
@@ -51,11 +65,32 @@ function matchesFilter(filterKey: string, summary: ClientSummary | undefined): b
   }
 }
 
-function buildFilterHref(filterKey: string, q: string): string {
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (filterKey !== "all") params.set("filter", filterKey);
-  const qs = params.toString();
+/** Same "read summary.hasAccount, no inference" discipline as
+ *  matchesFilter above — a client with no summary at all (shouldn't
+ *  happen, buildClientSummaries covers every client) is treated as
+ *  no-account, never as a match for "with". */
+function matchesAccountFilter(accountKey: string, summary: ClientSummary | undefined): boolean {
+  switch (accountKey) {
+    case "with":
+      return Boolean(summary?.hasAccount);
+    case "without":
+      return !summary?.hasAccount;
+    default:
+      return true;
+  }
+}
+
+/** Builds an /admin/clients URL preserving whichever of q/filter/account
+ *  isn't the one currently being changed — this is what lets the two
+ *  filter rows combine (clicking an account pill keeps the active
+ *  lead-status filter, and vice versa) instead of one resetting the
+ *  other. */
+function buildHref(params: { q: string; filter: string; account: string }): string {
+  const usp = new URLSearchParams();
+  if (params.q) usp.set("q", params.q);
+  if (params.filter !== "all") usp.set("filter", params.filter);
+  if (params.account !== "all") usp.set("account", params.account);
+  const qs = usp.toString();
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
 
@@ -72,14 +107,15 @@ function PaidCell({ paidAmount }: { paidAmount: ClientSummary["paidAmount"] }) {
 }
 
 interface PageProps {
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; account?: string }>;
 }
 
 export default async function AdminClientsPage({ searchParams }: PageProps) {
-  const { q = "", filter = "all" } = await searchParams;
+  const { q = "", filter = "all", account = "all" } = await searchParams;
   const activeFilter = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]!;
+  const activeAccountFilter = ACCOUNT_FILTERS.find((f) => f.key === account) ?? ACCOUNT_FILTERS[0]!;
 
-  const [clients, conversations, projects, payments, contactRequests] = await Promise.all([
+  const [clients, conversations, projects, payments, contactRequests, linkedClientIds] = await Promise.all([
     listClients(),
     listConversations({ limit: AGGREGATION_LIMIT }),
     listProjects(),
@@ -87,15 +123,30 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
     // Only "converted" is relevant for deriving Estado="Cliente" below —
     // same reasoning as the other bulk fetches above (Fase 5C Etapa 12).
     listContactRequests({ status: "converted", limit: AGGREGATION_LIMIT }),
+    // Real profiles.client_id relationship — see AccountBadge/"Cuenta"
+    // column below. Never inferred from name/email.
+    listLinkedProfileClientIds(),
   ]);
 
-  const summaries = buildClientSummaries({ clients, conversations, projects, payments, contactRequests });
+  const summaries = buildClientSummaries({
+    clients,
+    conversations,
+    projects,
+    payments,
+    contactRequests,
+    linkedClientIds,
+  });
 
   const needle = q.trim().toLowerCase();
   const visibleClients = clients.filter((c) => {
     const matchesQuery =
       !needle || c.name.toLowerCase().includes(needle) || c.email.toLowerCase().includes(needle);
-    return matchesQuery && matchesFilter(activeFilter.key, summaries.get(c.id));
+    const summary = summaries.get(c.id);
+    return (
+      matchesQuery &&
+      matchesFilter(activeFilter.key, summary) &&
+      matchesAccountFilter(activeAccountFilter.key, summary)
+    );
   });
 
   const emptyMessage =
@@ -107,6 +158,9 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
         <h1 className="text-xl font-semibold text-fg">Clientes</h1>
         <form method="get" className="flex items-center gap-2">
           {activeFilter.key !== "all" && <input type="hidden" name="filter" value={activeFilter.key} />}
+          {activeAccountFilter.key !== "all" && (
+            <input type="hidden" name="account" value={activeAccountFilter.key} />
+          )}
           <input
             type="search"
             name="q"
@@ -121,7 +175,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={buildFilterHref(f.key, q)}
+            href={buildHref({ q, filter: f.key, account: activeAccountFilter.key })}
             className={cn(
               "rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors",
               activeFilter.key === f.key
@@ -134,12 +188,31 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
         ))}
       </div>
 
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs uppercase tracking-wide text-fg-subtle">Cuenta:</span>
+        {ACCOUNT_FILTERS.map((f) => (
+          <Link
+            key={f.key}
+            href={buildHref({ q, filter: activeFilter.key, account: f.key })}
+            className={cn(
+              "rounded-pill border px-3 py-1.5 text-xs font-medium transition-colors",
+              activeAccountFilter.key === f.key
+                ? "border-border-accent bg-bg-elevated text-fg"
+                : "border-border-strong text-fg-muted hover:text-fg"
+            )}
+          >
+            {f.label}
+          </Link>
+        ))}
+      </div>
+
       {/* Desktop: tabla. Mobile: tarjetas apiladas — nunca scroll horizontal forzado. */}
       <div className="mt-6 hidden overflow-x-auto rounded-lg border border-border sm:block">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[820px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
               <th className="px-4 py-3 font-medium">Cliente</th>
+              <th className="px-4 py-3 font-medium">Cuenta</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium">Importancia</th>
               <th className="px-4 py-3 font-medium">Conversaciones</th>
@@ -151,7 +224,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
           <tbody>
             {visibleClients.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-fg-subtle">
+                <td colSpan={8} className="px-4 py-8 text-center text-fg-subtle">
                   {emptyMessage}
                 </td>
               </tr>
@@ -165,6 +238,9 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
                       {c.name}
                     </Link>
                     <p className="text-xs text-fg-subtle">{c.email}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {summary.hasAccount ? <AccountBadge /> : <span className="text-fg-subtle">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     {summary.leadStatus ? (
@@ -215,6 +291,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
                 <ClientImportanceBadge importance={summary.importance} />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
+                {summary.hasAccount && <AccountBadge />}
                 {summary.leadStatus && <LeadStatusBadge status={summary.leadStatus} />}
                 <span className="text-xs text-fg-muted">{summary.conversationsCount} conversaciones</span>
                 <span className="text-xs text-fg-muted">{summary.projectsCount} proyectos</span>
