@@ -24,6 +24,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Same exception, same reason: Supabase Auth's email confirmation link
+  // must redirect to one single, fixed, non-locale-prefixed URL — the
+  // exact one registered in Supabase's Redirect URLs allow-list
+  // (https://xayven.com/auth/callback). If this got rewritten to
+  // /es/auth/callback here, it would 404 (the route only exists at
+  // /auth/callback) — the desired locale travels as a validated
+  // ?locale= query param instead of a path segment. See
+  // src/app/auth/callback/route.ts.
+  if (pathname === "/auth/callback") {
+    return NextResponse.next();
+  }
+
   const pathnameHasLocale = locales.some(
     (locale) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
   );

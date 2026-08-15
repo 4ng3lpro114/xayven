@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
 import { registerSchema } from "@/lib/auth/schemas";
 import { createSupabaseServerClient, isClientAuthConfigured } from "@/lib/auth/supabaseServer";
+import { defaultLocale, hasLocale } from "@/lib/i18n/config";
+import { SITE_URL } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
@@ -28,6 +30,16 @@ export const runtime = "nodejs";
  *     required) → told to check their email. Not "advanced" email
  *     verification — just honestly reporting Supabase's own response
  *     shape instead of assuming one behavior.
+ *
+ * `options.emailRedirectTo` points Supabase's confirmation link at our
+ * own /auth/callback (see that route) instead of falling back to
+ * Supabase's dashboard-configured Site URL. Built EXCLUSIVELY from the
+ * server's own trusted SITE_URL constant — the client never supplies a
+ * URL. `locale` is the only thing the request can influence, and it's
+ * validated against the closed locale enum (hasLocale()) before being
+ * used, defaulting to defaultLocale otherwise — never a free-form value,
+ * so there's no way for a caller to redirect the confirmation link
+ * anywhere else.
  */
 export async function POST(request: NextRequest) {
   if (!isClientAuthConfigured()) {
@@ -59,6 +71,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // `locale` is request metadata, not account data — kept out of
+  // registerSchema on purpose. Only ever read as a plain string and
+  // checked against the closed locale enum; anything else (missing,
+  // wrong type, unrecognized value) falls back to defaultLocale.
+  const requestedLocale =
+    typeof body === "object" && body !== null && "locale" in body
+      ? String((body as { locale?: unknown }).locale ?? "")
+      : "";
+  const locale = hasLocale(requestedLocale) ? requestedLocale : defaultLocale;
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
@@ -67,6 +89,7 @@ export async function POST(request: NextRequest) {
       data: {
         full_name: parsed.data.fullName,
       },
+      emailRedirectTo: `${SITE_URL}/auth/callback?locale=${locale}`,
     },
   });
 

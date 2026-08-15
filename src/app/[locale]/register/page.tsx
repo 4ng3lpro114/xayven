@@ -58,6 +58,7 @@ export default async function RegisterPage({ params }: PageProps<"/[locale]/regi
                   form={dict.auth.register}
                   loginHref={`/${locale}/login`}
                   accountHref={`/${locale}/account`}
+                  locale={locale}
                 />
               </div>
             </Reveal>

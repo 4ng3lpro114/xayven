@@ -52,6 +52,7 @@ describe("requestRegister", () => {
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
+      locale: "es",
     });
     expect(outcome).toEqual({ status: "success", sessionActive: true });
   });
@@ -68,6 +69,7 @@ describe("requestRegister", () => {
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
+      locale: "es",
     });
     expect(outcome).toEqual({ status: "error", code: "generic" });
   });
@@ -81,6 +83,7 @@ describe("requestRegister", () => {
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
+      locale: "es",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -89,7 +92,7 @@ describe("requestRegister", () => {
     );
   });
 
-  it("incluye fullName en el body enviado al servidor", async () => {
+  it("incluye fullName y locale en el body enviado al servidor", async () => {
     const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () =>
       jsonResponse({ ok: true, sessionActive: false })
     );
@@ -100,6 +103,7 @@ describe("requestRegister", () => {
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
+      locale: "en",
     });
 
     const [, init] = fetchMock.mock.calls[0];
@@ -108,6 +112,7 @@ describe("requestRegister", () => {
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
+      locale: "en",
     });
   });
 });

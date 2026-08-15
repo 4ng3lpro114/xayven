@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionary";
+import type { Locale } from "@/lib/i18n/config";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -42,7 +43,7 @@ export function deriveRegisterOutcome(res: { status: number }, body: RegisterApi
 }
 
 export async function requestRegister(
-  payload: { fullName: string; email: string; password: string; confirmPassword: string },
+  payload: { fullName: string; email: string; password: string; confirmPassword: string; locale: string },
   fetchImpl: typeof fetch = fetch
 ): Promise<RegisterOutcome> {
   let res: Response;
@@ -63,10 +64,15 @@ export function RegisterForm({
   form,
   loginHref,
   accountHref,
+  locale,
 }: {
   form: Dictionary["auth"]["register"];
   loginHref: string;
   accountHref: string;
+  /** Sent to the server only as a locale identifier (never a URL) — used
+   *  to build the email confirmation link's callback locale. See
+   *  /api/auth/register/route.ts. */
+  locale: Locale;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
@@ -86,6 +92,7 @@ export function RegisterForm({
       email: String(data.get("email") ?? "").trim(),
       password: String(data.get("password") ?? ""),
       confirmPassword: String(data.get("confirmPassword") ?? ""),
+      locale,
     };
 
     const nextErrors: FieldErrors = {};

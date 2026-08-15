@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { SITE_URL } from "@/lib/constants";
 
 /**
  * Unlike contactRequestStore/paymentsStore, Supabase Auth has no
@@ -79,11 +80,15 @@ describe("POST /api/auth/register", () => {
     expect(body.ok).toBe(true);
     expect(body.sessionActive).toBe(true);
     // full_name viaja únicamente como metadata de Supabase Auth — nunca
-    // role/client_id, y nunca se escribe en profiles desde esta ruta.
+    // role/client_id, y nunca se escribe en profiles desde esta ruta. Sin
+    // `locale` en el body, cae al default "es".
     expect(signUpMock).toHaveBeenCalledWith({
       email: "diana@example.com",
       password: "supersecret1",
-      options: { data: { full_name: "Diana Pérez" } },
+      options: {
+        data: { full_name: "Diana Pérez" },
+        emailRedirectTo: `${SITE_URL}/auth/callback?locale=es`,
+      },
     });
   });
 
@@ -199,7 +204,81 @@ describe("POST /api/auth/register", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "diana@example.com",
       password: "supersecret1",
-      options: { data: { full_name: "Diana Pérez" } },
+      options: {
+        data: { full_name: "Diana Pérez" },
+        emailRedirectTo: `${SITE_URL}/auth/callback?locale=es`,
+      },
     });
+  });
+
+  it("locale='es' → emailRedirectTo incluye ?locale=es", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "diana@example.com" }, session: { access_token: "t" } },
+      error: null,
+    });
+
+    await POST(
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+        locale: "es",
+      })
+    );
+
+    expect(signUpMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo: `${SITE_URL}/auth/callback?locale=es`,
+        }),
+      })
+    );
+  });
+
+  it("locale='en' → emailRedirectTo incluye ?locale=en", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "diana@example.com" }, session: { access_token: "t" } },
+      error: null,
+    });
+
+    await POST(
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+        locale: "en",
+      })
+    );
+
+    expect(signUpMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo: `${SITE_URL}/auth/callback?locale=en`,
+        }),
+      })
+    );
+  });
+
+  it("locale inválido / no reconocido → fallback seguro a 'es', nunca se refleja verbatim en la URL", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "diana@example.com" }, session: { access_token: "t" } },
+      error: null,
+    });
+
+    await POST(
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+        locale: "https://evil.example.com",
+      })
+    );
+
+    const [[callArgs]] = signUpMock.mock.calls;
+    expect(callArgs.options.emailRedirectTo).toBe(`${SITE_URL}/auth/callback?locale=es`);
+    expect(callArgs.options.emailRedirectTo).not.toContain("evil.example.com");
   });
 });
