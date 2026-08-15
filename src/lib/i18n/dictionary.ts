@@ -338,4 +338,63 @@ export interface Dictionary {
     FULL_PAYMENT: string;
     MAINTENANCE: string;
   };
+
+  /** Client accounts (Fase 2) — email/password only, no portal content
+   *  yet. Kept deliberately separate from `portal` (the per-project
+   *  capability-token area) — see the "Cuentas XAYVEN" architecture doc. */
+  auth: {
+    login: {
+      eyebrow: string;
+      heading: string;
+      description: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      passwordLabel: string;
+      passwordPlaceholder: string;
+      submit: string;
+      submitting: string;
+      errorInvalidCredentials: string;
+      errorGeneric: string;
+      errorRateLimited: string;
+      noAccount: string;
+      registerLink: string;
+    };
+    register: {
+      eyebrow: string;
+      heading: string;
+      description: string;
+      emailLabel: string;
+      emailPlaceholder: string;
+      passwordLabel: string;
+      passwordPlaceholder: string;
+      confirmPasswordLabel: string;
+      confirmPasswordPlaceholder: string;
+      submit: string;
+      submitting: string;
+      successTitle: string;
+      successBodyActive: string;
+      successBodyConfirmEmail: string;
+      goToAccountCta: string;
+      errorEmailInUse: string;
+      errorPasswordsDontMatch: string;
+      errorWeakPassword: string;
+      errorGeneric: string;
+      errorRateLimited: string;
+      haveAccount: string;
+      loginLink: string;
+    };
+    account: {
+      eyebrow: string;
+      heading: string;
+      emailLabel: string;
+      roleLabel: string;
+      sessionActiveLabel: string;
+      logout: string;
+    };
+    roleLabels: {
+      admin: string;
+      staff: string;
+      client: string;
+    };
+  };
 }
