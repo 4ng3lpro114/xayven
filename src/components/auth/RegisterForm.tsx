@@ -10,6 +10,7 @@ import type { Dictionary } from "@/lib/i18n/dictionary";
 type Status = "idle" | "submitting" | "success" | "error";
 
 interface FieldErrors {
+  fullName?: string;
   email?: string;
   password?: string;
   confirmPassword?: string;
@@ -41,7 +42,7 @@ export function deriveRegisterOutcome(res: { status: number }, body: RegisterApi
 }
 
 export async function requestRegister(
-  payload: { email: string; password: string; confirmPassword: string },
+  payload: { fullName: string; email: string; password: string; confirmPassword: string },
   fetchImpl: typeof fetch = fetch
 ): Promise<RegisterOutcome> {
   let res: Response;
@@ -81,12 +82,14 @@ export function RegisterForm({
 
     const data = new FormData(event.currentTarget);
     const payload = {
+      fullName: String(data.get("fullName") ?? "").trim(),
       email: String(data.get("email") ?? "").trim(),
       password: String(data.get("password") ?? ""),
       confirmPassword: String(data.get("confirmPassword") ?? ""),
     };
 
     const nextErrors: FieldErrors = {};
+    if (payload.fullName.length < 2) nextErrors.fullName = form.errorFullNameRequired;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) nextErrors.email = form.errorGeneric;
     if (payload.password.length < 8) nextErrors.password = form.errorWeakPassword;
     if (payload.password !== payload.confirmPassword) {
@@ -139,6 +142,19 @@ export function RegisterForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      <Field label={form.fullNameLabel} htmlFor={`${formId}-fullName`} error={errors.fullName}>
+        <input
+          id={`${formId}-fullName`}
+          name="fullName"
+          type="text"
+          required
+          autoComplete="name"
+          placeholder={form.fullNamePlaceholder}
+          className={inputClasses}
+          aria-invalid={Boolean(errors.fullName)}
+        />
+      </Field>
+
       <Field label={form.emailLabel} htmlFor={`${formId}-email`} error={errors.email}>
         <input
           id={`${formId}-email`}

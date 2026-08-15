@@ -48,6 +48,7 @@ describe("requestRegister", () => {
   it("éxito → status success", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ ok: true, sessionActive: true })));
     const outcome = await requestRegister({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -63,6 +64,7 @@ describe("requestRegister", () => {
       })
     );
     const outcome = await requestRegister({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -75,6 +77,7 @@ describe("requestRegister", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await requestRegister({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -84,5 +87,27 @@ describe("requestRegister", () => {
       "/api/auth/register",
       expect.objectContaining({ method: "POST" })
     );
+  });
+
+  it("incluye fullName en el body enviado al servidor", async () => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () =>
+      jsonResponse({ ok: true, sessionActive: false })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestRegister({
+      fullName: "Diana Pérez",
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init!.body as string)).toEqual({
+      fullName: "Diana Pérez",
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
   });
 });

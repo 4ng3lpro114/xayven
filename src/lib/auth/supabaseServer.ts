@@ -75,6 +75,7 @@ export async function getSessionUser(): Promise<User | null> {
 
 export interface CurrentProfile {
   id: string;
+  fullName: string;
   clientId: string | null;
   role: "admin" | "staff" | "client";
 }
@@ -96,10 +97,10 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, client_id, role")
+    .select("id, full_name, client_id, role")
     .eq("id", user.id)
     .single();
 
   if (!data) return null;
-  return { id: data.id, clientId: data.client_id, role: data.role };
+  return { id: data.id, fullName: data.full_name, clientId: data.client_id, role: data.role };
 }

@@ -4,6 +4,7 @@ import { registerSchema, loginSchema } from "@/lib/auth/schemas";
 describe("registerSchema", () => {
   it("registro válido pasa", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -13,6 +14,7 @@ describe("registerSchema", () => {
 
   it("email inválido falla", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "not-an-email",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -22,6 +24,7 @@ describe("registerSchema", () => {
 
   it("contraseñas diferentes falla, con el código passwords_dont_match", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "otracosa123",
@@ -34,6 +37,7 @@ describe("registerSchema", () => {
 
   it("contraseña demasiado corta falla", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "123",
       confirmPassword: "123",
@@ -41,8 +45,52 @@ describe("registerSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("nombre completo vacío falla", () => {
+    const result = registerSchema.safeParse({
+      fullName: "",
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("nombre completo solo con espacios falla (se recorta antes de validar)", () => {
+    const result = registerSchema.safeParse({
+      fullName: "   ",
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("nombre completo demasiado largo falla", () => {
+    const result = registerSchema.safeParse({
+      fullName: "A".repeat(101),
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("recorta espacios al principio/final del nombre completo", () => {
+    const result = registerSchema.safeParse({
+      fullName: "  Diana Pérez  ",
+      email: "diana@example.com",
+      password: "supersecret1",
+      confirmPassword: "supersecret1",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fullName).toBe("Diana Pérez");
+    }
+  });
+
   it("nunca acepta role ni client_id — el schema no tiene esos campos, se ignoran si se envían", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "diana@example.com",
       password: "supersecret1",
       confirmPassword: "supersecret1",
@@ -58,6 +106,7 @@ describe("registerSchema", () => {
 
   it("normaliza el email a minúsculas y sin espacios", () => {
     const result = registerSchema.safeParse({
+      fullName: "Diana Pérez",
       email: "  Diana@Example.com  ",
       password: "supersecret1",
       confirmPassword: "supersecret1",

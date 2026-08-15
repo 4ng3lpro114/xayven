@@ -49,7 +49,12 @@ describe("POST /api/auth/register", () => {
   it("no configurado (sin SUPABASE_ANON_KEY) → 503", async () => {
     isClientAuthConfiguredMock.mockReturnValue(false);
     const res = await POST(
-      makeRequest({ email: "diana@example.com", password: "supersecret1", confirmPassword: "supersecret1" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
     );
     expect(res.status).toBe(503);
   });
@@ -61,15 +66,25 @@ describe("POST /api/auth/register", () => {
     });
 
     const res = await POST(
-      makeRequest({ email: "diana@example.com", password: "supersecret1", confirmPassword: "supersecret1" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
     );
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.sessionActive).toBe(true);
-    // Nunca se le pasa role/client_id a Supabase Auth — solo email/password.
-    expect(signUpMock).toHaveBeenCalledWith({ email: "diana@example.com", password: "supersecret1" });
+    // full_name viaja únicamente como metadata de Supabase Auth — nunca
+    // role/client_id, y nunca se escribe en profiles desde esta ruta.
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: "diana@example.com",
+      password: "supersecret1",
+      options: { data: { full_name: "Diana Pérez" } },
+    });
   });
 
   it("registro válido, confirmación de email requerida (sin sesión todavía) → 200, sessionActive false", async () => {
@@ -79,7 +94,12 @@ describe("POST /api/auth/register", () => {
     });
 
     const res = await POST(
-      makeRequest({ email: "diana@example.com", password: "supersecret1", confirmPassword: "supersecret1" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
     );
 
     expect(res.status).toBe(200);
@@ -90,7 +110,12 @@ describe("POST /api/auth/register", () => {
 
   it("contraseñas distintas → 400 passwords_dont_match, nunca llama a Supabase", async () => {
     const res = await POST(
-      makeRequest({ email: "diana@example.com", password: "supersecret1", confirmPassword: "otra12345" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "otra12345",
+      })
     );
 
     expect(res.status).toBe(400);
@@ -101,7 +126,28 @@ describe("POST /api/auth/register", () => {
 
   it("email inválido → 400 validation_failed, nunca llama a Supabase", async () => {
     const res = await POST(
-      makeRequest({ email: "no-es-un-email", password: "supersecret1", confirmPassword: "supersecret1" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "no-es-un-email",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("validation_failed");
+    expect(signUpMock).not.toHaveBeenCalled();
+  });
+
+  it("nombre completo vacío → 400 validation_failed, nunca llama a Supabase", async () => {
+    const res = await POST(
+      makeRequest({
+        fullName: "   ",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
     );
 
     expect(res.status).toBe(400);
@@ -117,7 +163,12 @@ describe("POST /api/auth/register", () => {
     });
 
     const res = await POST(
-      makeRequest({ email: "diana@example.com", password: "supersecret1", confirmPassword: "supersecret1" })
+      makeRequest({
+        fullName: "Diana Pérez",
+        email: "diana@example.com",
+        password: "supersecret1",
+        confirmPassword: "supersecret1",
+      })
     );
 
     expect(res.status).toBe(400);
@@ -134,6 +185,7 @@ describe("POST /api/auth/register", () => {
 
     await POST(
       makeRequest({
+        fullName: "Diana Pérez",
         email: "diana@example.com",
         password: "supersecret1",
         confirmPassword: "supersecret1",
@@ -142,7 +194,12 @@ describe("POST /api/auth/register", () => {
       })
     );
 
-    // signUp() solo recibe email/password — nada más pudo colarse.
-    expect(signUpMock).toHaveBeenCalledWith({ email: "diana@example.com", password: "supersecret1" });
+    // signUp() solo recibe email/password/full_name (como metadata) —
+    // nada más pudo colarse.
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: "diana@example.com",
+      password: "supersecret1",
+      options: { data: { full_name: "Diana Pérez" } },
+    });
   });
 });

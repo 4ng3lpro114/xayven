@@ -65,10 +65,10 @@ describe("getSessionUser / getCurrentProfile", () => {
     expect(fromMock).not.toHaveBeenCalled();
   });
 
-  it("con sesión → getCurrentProfile() devuelve role='client' y client_id=null (estado inicial creado por el trigger)", async () => {
+  it("con sesión → getCurrentProfile() devuelve full_name, role='client' y client_id=null (estado inicial creado por el trigger)", async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: "u1", email: "diana@example.com" } } });
     const single = vi.fn().mockResolvedValue({
-      data: { id: "u1", client_id: null, role: "client" },
+      data: { id: "u1", full_name: "Diana Pérez", client_id: null, role: "client" },
     });
     const eq = vi.fn(() => ({ single }));
     const select = vi.fn(() => ({ eq }));
@@ -77,8 +77,9 @@ describe("getSessionUser / getCurrentProfile", () => {
     const { getCurrentProfile } = await import("@/lib/auth/supabaseServer");
     const profile = await getCurrentProfile();
 
-    expect(profile).toEqual({ id: "u1", clientId: null, role: "client" });
+    expect(profile).toEqual({ id: "u1", fullName: "Diana Pérez", clientId: null, role: "client" });
     expect(fromMock).toHaveBeenCalledWith("profiles");
+    expect(select).toHaveBeenCalledWith("id, full_name, client_id, role");
     expect(eq).toHaveBeenCalledWith("id", "u1");
   });
 });

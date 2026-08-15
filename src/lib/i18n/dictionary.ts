@@ -371,6 +371,10 @@ export interface Dictionary {
       heading: string;
       description: string;
       panelTagline: string;
+      /** Full name — display name only, never a username/alias; the
+       *  auth identifier stays the email. See RegisterForm.tsx. */
+      fullNameLabel: string;
+      fullNamePlaceholder: string;
       emailLabel: string;
       emailPlaceholder: string;
       passwordLabel: string;
@@ -386,6 +390,7 @@ export interface Dictionary {
       errorEmailInUse: string;
       errorPasswordsDontMatch: string;
       errorWeakPassword: string;
+      errorFullNameRequired: string;
       errorGeneric: string;
       errorRateLimited: string;
       haveAccount: string;
@@ -394,6 +399,9 @@ export interface Dictionary {
     account: {
       eyebrow: string;
       heading: string;
+      /** Leading word for the personalized heading — "{greetingPrefix}
+       *  {full_name}", e.g. "Hola, Ángel". See account/page.tsx. */
+      greetingPrefix: string;
       emailLabel: string;
       roleLabel: string;
       sessionActiveLabel: string;

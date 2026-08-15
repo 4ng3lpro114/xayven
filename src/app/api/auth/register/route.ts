@@ -7,13 +7,18 @@ import { createSupabaseServerClient, isClientAuthConfigured } from "@/lib/auth/s
 export const runtime = "nodejs";
 
 /**
- * Client account registration (Fase 2). Creates the auth.users row via
- * Supabase Auth only — the corresponding public.profiles row (always
- * role='client', client_id=null) is created entirely by the database
- * trigger from 0010_profiles.sql, never by this route. The request body
- * this route accepts has no `role`/`client_id` field at all (see
- * registerSchema) — there is structurally nothing here for a caller to
- * send that could influence either.
+ * Client account registration (Fase 2, extended with full_name). Creates
+ * the auth.users row via Supabase Auth only — the corresponding
+ * public.profiles row (always role='client', client_id=null, full_name
+ * sourced from auth metadata) is created entirely by the database
+ * trigger from 0011_profiles_full_name.sql, never by this route. The
+ * request body this route accepts has no `role`/`client_id` field at all
+ * (see registerSchema) — there is structurally nothing here for a caller
+ * to send that could influence either. `fullName` is passed only as
+ * Supabase Auth metadata (`options.data.full_name`), the same mechanism
+ * the trigger reads from — never written to profiles directly by this
+ * route, and never used as a username/alias (the identifier stays the
+ * email).
  *
  * Two real, honest outcomes after a successful `auth.signUp()`, both
  * handled explicitly rather than assumed:
@@ -58,6 +63,11 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
+    options: {
+      data: {
+        full_name: parsed.data.fullName,
+      },
+    },
   });
 
   if (error) {

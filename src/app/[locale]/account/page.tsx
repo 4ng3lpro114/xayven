@@ -44,10 +44,17 @@ export default async function AccountPage({ params }: PageProps<"/[locale]/accou
   if (!user) redirect(`/${locale}/login`);
 
   const profile = await getCurrentProfile();
+  // Personalized only when we actually have a name — never substitutes
+  // the email as a stand-in name (see 0011_profiles_full_name.sql; the
+  // profile row can only be missing in the narrow race documented on
+  // getCurrentProfile() above).
+  const heading = profile
+    ? `${dict.auth.account.greetingPrefix} ${profile.fullName}`
+    : dict.auth.account.heading;
 
   return (
     <>
-      <PageIntro eyebrow={dict.auth.account.eyebrow} heading={dict.auth.account.heading} />
+      <PageIntro eyebrow={dict.auth.account.eyebrow} heading={heading} />
       <Section>
         <Container size="narrow">
           <Reveal>
