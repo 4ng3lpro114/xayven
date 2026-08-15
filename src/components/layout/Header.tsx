@@ -16,6 +16,11 @@ interface HeaderProps {
   locale: Locale;
   labels: Record<(typeof NAV_ITEMS)[number]["key"], string>;
   ctaLabel: string;
+  /** Resolved server-side in [locale]/layout.tsx via getSessionUser() —
+   *  never re-derived client-side, never localStorage. */
+  isAuthenticated: boolean;
+  loginCta: string;
+  accountCta: string;
   openMenuLabel: string;
   closeMenuLabel: string;
   languageSwitcherLabel: string;
@@ -25,6 +30,9 @@ export function Header({
   locale,
   labels,
   ctaLabel,
+  isAuthenticated,
+  loginCta,
+  accountCta,
   openMenuLabel,
   closeMenuLabel,
   languageSwitcherLabel,
@@ -96,6 +104,14 @@ export function Header({
             <div className="hidden sm:block">
               <LanguageSwitcher locale={locale} label={languageSwitcherLabel} />
             </div>
+            <Button
+              href={`/${locale}/${isAuthenticated ? "account" : "login"}`}
+              variant="secondary"
+              size="md"
+              className="hidden sm:inline-flex"
+            >
+              {isAuthenticated ? accountCta : loginCta}
+            </Button>
             <Button href={`/${locale}/contact`} size="md" className="hidden sm:inline-flex">
               {ctaLabel}
             </Button>
@@ -118,6 +134,9 @@ export function Header({
         locale={locale}
         labels={labels}
         ctaLabel={ctaLabel}
+        isAuthenticated={isAuthenticated}
+        loginCta={loginCta}
+        accountCta={accountCta}
         closeMenuLabel={closeMenuLabel}
         languageSwitcherLabel={languageSwitcherLabel}
         currentPath={currentPath}

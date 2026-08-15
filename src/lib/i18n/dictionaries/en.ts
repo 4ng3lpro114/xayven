@@ -20,6 +20,8 @@ export const en: Dictionary = {
     openMenu: "Open menu",
     closeMenu: "Close menu",
     languageSwitcherLabel: "Switch language",
+    loginCta: "Sign in",
+    accountCta: "My account",
   },
   hero: {
     eyebrow: "XAYVEN — Digital Studio",
@@ -698,6 +700,7 @@ export const en: Dictionary = {
       eyebrow: "Account",
       heading: "Sign in",
       description: "Access your XAYVEN account.",
+      panelTagline: "Your project. Your space. All in one place.",
       emailLabel: "Email",
       emailPlaceholder: "you@email.com",
       passwordLabel: "Password",
@@ -713,7 +716,8 @@ export const en: Dictionary = {
     register: {
       eyebrow: "Account",
       heading: "Create your account",
-      description: "Sign up with your email to access your XAYVEN account.",
+      description: "Start managing your relationship with XAYVEN from one place.",
+      panelTagline: "A dedicated space for every project we build together.",
       emailLabel: "Email",
       emailPlaceholder: "you@email.com",
       passwordLabel: "Password",
@@ -746,6 +750,11 @@ export const en: Dictionary = {
       admin: "Administrator",
       staff: "XAYVEN team",
       client: "Client",
+    },
+    panel: {
+      projects: "Projects",
+      conversations: "Conversations",
+      payments: "Payments",
     },
   },
 };

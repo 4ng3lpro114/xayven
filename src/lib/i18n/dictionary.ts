@@ -22,6 +22,10 @@ export interface Dictionary {
     openMenu: string;
     closeMenu: string;
     languageSwitcherLabel: string;
+    /** Header/mobile-nav auth access — shown instead of each other
+     *  depending on session state (see [locale]/layout.tsx). */
+    loginCta: string;
+    accountCta: string;
   };
   hero: {
     eyebrow: string;
@@ -347,6 +351,9 @@ export interface Dictionary {
       eyebrow: string;
       heading: string;
       description: string;
+      /** Brand phrase for the right-column visual panel on desktop —
+       *  see AuthVisualPanel.tsx. Purely presentational copy. */
+      panelTagline: string;
       emailLabel: string;
       emailPlaceholder: string;
       passwordLabel: string;
@@ -363,6 +370,7 @@ export interface Dictionary {
       eyebrow: string;
       heading: string;
       description: string;
+      panelTagline: string;
       emailLabel: string;
       emailPlaceholder: string;
       passwordLabel: string;
@@ -395,6 +403,14 @@ export interface Dictionary {
       admin: string;
       staff: string;
       client: string;
+    };
+    /** Shared node labels for the login/register visual panel — purely
+     *  decorative, suggest what an account unlocks (Fase 4+), nothing
+     *  here is a real feature yet. See AuthVisualPanel.tsx. */
+    panel: {
+      projects: string;
+      conversations: string;
+      payments: string;
     };
   };
 }

@@ -9,6 +9,7 @@ import { hasLocale, locales, type Locale } from "@/lib/i18n/config";
 import { buildMetadata } from "@/lib/seo";
 import { SITE_URL, WHATSAPP_NUMBER } from "@/lib/constants";
 import { notFound } from "next/navigation";
+import { getSessionUser } from "@/lib/auth/supabaseServer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,12 @@ export default async function LocaleLayout({
   const locale = rawLocale;
   const dict = await getDictionary(locale);
 
+  // Server-side only, re-validated against Supabase Auth on every request
+  // (same getSessionUser() the /account page itself uses) — never trusts
+  // a client-side-only flag, never localStorage. Determines only which
+  // single label/link the header shows; no other behavior depends on it.
+  const user = await getSessionUser();
+
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -99,6 +106,9 @@ export default async function LocaleLayout({
             about: dict.nav.about,
           }}
           ctaLabel={dict.nav.ctaPrimary}
+          isAuthenticated={Boolean(user)}
+          loginCta={dict.nav.loginCta}
+          accountCta={dict.nav.accountCta}
           openMenuLabel={dict.nav.openMenu}
           closeMenuLabel={dict.nav.closeMenu}
           languageSwitcherLabel={dict.nav.languageSwitcherLabel}

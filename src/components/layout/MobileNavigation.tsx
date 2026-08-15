@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
+import { User, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
@@ -15,6 +15,9 @@ interface MobileNavigationProps {
   locale: Locale;
   labels: Record<(typeof NAV_ITEMS)[number]["key"], string>;
   ctaLabel: string;
+  isAuthenticated: boolean;
+  loginCta: string;
+  accountCta: string;
   closeMenuLabel: string;
   languageSwitcherLabel: string;
   currentPath: string;
@@ -26,6 +29,9 @@ export function MobileNavigation({
   locale,
   labels,
   ctaLabel,
+  isAuthenticated,
+  loginCta,
+  accountCta,
   closeMenuLabel,
   languageSwitcherLabel,
   currentPath,
@@ -82,7 +88,17 @@ export function MobileNavigation({
             })}
           </nav>
 
-          <div className="flex items-center justify-between gap-4 border-t border-border px-6 py-6">
+          <div className="border-t border-border px-6 pt-5">
+            <Link
+              href={`/${locale}/${isAuthenticated ? "account" : "login"}`}
+              className="inline-flex items-center gap-2 py-2 text-base font-medium text-fg-muted transition-colors hover:text-fg"
+            >
+              <User className="size-4" aria-hidden="true" />
+              {isAuthenticated ? accountCta : loginCta}
+            </Link>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 px-6 pb-6 pt-2">
             <LanguageSwitcher locale={locale} label={languageSwitcherLabel} />
             <Button href={`/${locale}/contact`} withArrow>
               {ctaLabel}
