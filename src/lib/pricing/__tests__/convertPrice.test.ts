@@ -72,11 +72,12 @@ describe("convertFromBase — Phase C, nunca inventa, nunca estima", () => {
   });
 
   it("hay tasa pero no existe CurrencyConfig para esa moneda → null, nunca inventa una regla de redondeo", async () => {
-    // 'EUR' no forma parte del set cerrado COP/USD a nivel de schema — se
-    // fuerza aquí solo para ejercitar esta rama defensiva del store
-    // (el store en sí no valida el enum, solo el schema de Zod que las
-    // rutas de escritura usarán en una fase futura).
-    const input = { quoteCurrency: "EUR", rate: 0.00023, source: "convert-test-no-config" } as unknown as RecordExchangeRateInput;
+    // 'EUR' SÍ forma parte del set cerrado a nivel de schema (International
+    // Pricing — Canonical Anchor, aprobado 2026-08-18), pero el seed en
+    // memoria de currencyConfigStore.ts sigue siendo solo COP/USD (el seed
+    // de fallback local-dev nunca se tocó) — sirve igual para ejercitar
+    // esta rama defensiva del store sin necesitar `as unknown as`.
+    const input: RecordExchangeRateInput = { quoteCurrency: "EUR", rate: 0.00023, source: "convert-test-no-config" };
     await recordExchangeRate(input);
     const result = await convertFromBase(799_000, "EUR");
     expect(result).toBeNull();

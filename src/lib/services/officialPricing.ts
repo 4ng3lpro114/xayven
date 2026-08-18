@@ -31,7 +31,12 @@ export async function resolveServiceOfficialPriceSummary(
 
   const cheapest = available.reduce((min, r) => (r.amount! < min.amount! ? r : min));
   const kind: ServicePriceSummaryKind = cheapest.priceType === "FROM" || available.length > 1 ? "from" : "fixed";
-  return { kind, amount: cheapest.amount!, currency: cheapest.currency };
+  // itemSlug/marketCode identify EXACTLY which official price this summary
+  // collapsed from — Canonical Anchor Synchronization (approved
+  // 2026-08-18) needs them so applyDisplayCurrency() can run the same
+  // sibling-swap/canonical-anchor logic withDisplayPrice() already runs
+  // for Maintenance/XAYVEN AI, instead of a plain exchange-rate pivot.
+  return { kind, amount: cheapest.amount!, currency: cheapest.currency, itemSlug: cheapest.itemSlug, marketCode: cheapest.marketCode };
 }
 
 /**

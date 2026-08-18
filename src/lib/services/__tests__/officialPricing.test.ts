@@ -33,7 +33,7 @@ describe("resolveServiceOfficialPriceSummary — Services usa Pricing Core vía 
     });
 
     const summary = await resolveServiceOfficialPriceSummary(["start"], market.code);
-    expect(summary).toEqual({ kind: "fixed", amount: 399, currency: "USD" });
+    expect(summary).toEqual({ kind: "fixed", amount: 399, currency: "USD", itemSlug: "start", marketCode: market.code });
   });
 
   it("varios packages relacionados → 'from' con el más barato, aunque todos sean FIXED", async () => {
@@ -51,7 +51,7 @@ describe("resolveServiceOfficialPriceSummary — Services usa Pricing Core vía 
     await createPricingMarketPrice({ pricingCatalogId: pro!.id, marketId: market.id, currency: "USD", priceType: "FIXED", price: 799, isActive: true });
 
     const summary = await resolveServiceOfficialPriceSummary(["start", "professional"], market.code);
-    expect(summary).toEqual({ kind: "from", amount: 399, currency: "USD" });
+    expect(summary).toEqual({ kind: "from", amount: 399, currency: "USD", itemSlug: "start", marketCode: market.code });
   });
 
   it("kind='quote' produce el label de cotización del diccionario, nunca un número — formatServicePriceLabel() reutilizado sin cambios", () => {
