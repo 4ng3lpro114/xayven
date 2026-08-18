@@ -1,15 +1,16 @@
 import { ServiceForm } from "@/components/admin/ServiceForm";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
 export default function NewServicePage() {
   return (
     <div>
-      <h1 className="text-xl font-semibold text-fg">Nuevo servicio</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        Contenido completo en español e inglés — ambos son obligatorios, ningún servicio se
-        publica con una traducción incompleta.
-      </p>
+      <AdminPageHeader
+        eyebrow="Catálogo"
+        title="Nuevo servicio"
+        description="Contenido completo en español e inglés — ambos son obligatorios, ningún servicio se publica con una traducción incompleta."
+      />
       <div className="mt-8">
         <ServiceForm mode="create" />
       </div>

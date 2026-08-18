@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { toLines, fromLines } from "@/lib/services/textLists";
+import { AdminFormSection, AdminField, AdminCheckboxField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { PricingCatalogItem, PricingCategory, PricingBillingInterval, PricingType } from "@/lib/pricing/types";
 
-const inputClasses =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none disabled:opacity-50";
-const textareaClasses = `${inputClasses} font-mono text-xs`;
+const textareaClasses = `${adminInputClasses} font-mono text-xs`;
 
 const CATEGORY_LABELS: Record<PricingCategory, string> = {
   package: "Paquete web",
@@ -41,8 +40,7 @@ export interface PackageFormValues {
 /**
  * Admin Phase 5 — shared between /admin/packages/new and
  * /admin/packages/[id], mirroring PromotionForm.tsx's exact structure
- * (same inputClasses, same Field helper, same FormData-based submit, no
- * new form pattern introduced).
+ * (same FormData-based submit, no new form pattern introduced).
  *
  * `slug`/`category`/`billingInterval` are only editable on CREATE — on
  * edit they render disabled (visible, not submitted) since they define
@@ -57,6 +55,10 @@ export interface PackageFormValues {
  * services/types.ts) — one-line-per-item textareas, same
  * toLines()/fromLines() convention ServiceForm.tsx already established,
  * reused as-is here rather than duplicated.
+ *
+ * Admin UI Polish — grouped into AdminFormSection blocks (Identificación /
+ * Precio / Estado / Contenido) instead of a flat label-input run. Field
+ * names, submit payload, and validation are byte-for-byte the same.
  */
 export function PackageForm({
   mode,
@@ -138,132 +140,132 @@ export function PackageForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl space-y-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Slug" htmlFor="slug">
-          <input
-            id="slug"
-            name="slug"
-            type="text"
-            required
-            disabled={mode === "edit"}
-            defaultValue={initialValues?.slug}
-            placeholder="start"
-            pattern="[a-z0-9-]+"
-            className={inputClasses}
-          />
-        </Field>
-        <Field label="Nombre" htmlFor="name">
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            defaultValue={initialValues?.name}
-            placeholder="START"
-            className={inputClasses}
-          />
-        </Field>
-      </div>
+    <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
+      <AdminFormSection title="Identificación">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Slug" htmlFor="slug">
+            <input
+              id="slug"
+              name="slug"
+              type="text"
+              required
+              disabled={mode === "edit"}
+              defaultValue={initialValues?.slug}
+              placeholder="start"
+              pattern="[a-z0-9-]+"
+              className={adminInputClasses}
+            />
+          </AdminField>
+          <AdminField label="Nombre" htmlFor="name">
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              defaultValue={initialValues?.name}
+              placeholder="START"
+              className={adminInputClasses}
+            />
+          </AdminField>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Categoría" htmlFor="category">
+            <select
+              id="category"
+              name="category"
+              disabled={mode === "edit"}
+              defaultValue={category}
+              onChange={(e) => setCategory(e.target.value as PricingCategory)}
+              className={adminInputClasses}
+            >
+              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </AdminField>
+          <AdminField label="Intervalo de cobro" htmlFor="billingInterval">
+            <select
+              id="billingInterval"
+              name="billingInterval"
+              disabled={mode === "edit"}
+              defaultValue={initialValues?.billingInterval ?? "ONE_TIME"}
+              className={adminInputClasses}
+            >
+              {Object.entries(BILLING_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </AdminField>
+        </div>
+      </AdminFormSection>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Categoría" htmlFor="category">
-          <select
-            id="category"
-            name="category"
-            disabled={mode === "edit"}
-            defaultValue={category}
-            onChange={(e) => setCategory(e.target.value as PricingCategory)}
-            className={inputClasses}
-          >
-            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
+      <AdminFormSection title="Precio">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Tipo de precio" htmlFor="priceType">
+            <select id="priceType" name="priceType" defaultValue={initialValues?.priceType ?? "FIXED"} className={adminInputClasses}>
+              {Object.entries(PRICE_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </AdminField>
+          <AdminField label="Precio base" htmlFor="basePrice">
+            <input
+              id="basePrice"
+              name="basePrice"
+              type="number"
+              min={1}
+              step={1}
+              required
+              defaultValue={initialValues?.basePrice}
+              className={adminInputClasses}
+            />
+          </AdminField>
+        </div>
+        <AdminField label="Moneda" htmlFor="currency">
+          <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={adminInputClasses}>
+            <option value="COP">COP</option>
+            <option value="USD">USD</option>
           </select>
-        </Field>
-        <Field label="Intervalo de cobro" htmlFor="billingInterval">
-          <select
-            id="billingInterval"
-            name="billingInterval"
-            disabled={mode === "edit"}
-            defaultValue={initialValues?.billingInterval ?? "ONE_TIME"}
-            className={inputClasses}
-          >
-            {Object.entries(BILLING_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
+        </AdminField>
+      </AdminFormSection>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Tipo de precio" htmlFor="priceType">
-          <select id="priceType" name="priceType" defaultValue={initialValues?.priceType ?? "FIXED"} className={inputClasses}>
-            {Object.entries(PRICE_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Precio base" htmlFor="basePrice">
-          <input
-            id="basePrice"
-            name="basePrice"
-            type="number"
-            min={1}
-            step={1}
-            required
-            defaultValue={initialValues?.basePrice}
-            className={inputClasses}
-          />
-        </Field>
-      </div>
-
-      <Field label="Moneda" htmlFor="currency">
-        <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={inputClasses}>
-          <option value="COP">COP</option>
-          <option value="USD">USD</option>
-        </select>
-      </Field>
-
-      <label className="flex items-center gap-2.5 text-sm text-fg">
-        <input
-          type="checkbox"
-          name="isActive"
-          defaultChecked={initialValues?.isActive ?? true}
-          className="size-4 rounded border-border-strong"
-        />
-        Activo (visible públicamente en Services/Maintenance)
-      </label>
+      <AdminFormSection title="Estado">
+        <AdminCheckboxField name="isActive" defaultChecked={initialValues?.isActive ?? true}>
+          Activo (visible públicamente en Services/Maintenance)
+        </AdminCheckboxField>
+      </AdminFormSection>
 
       {category === "maintenance" && (
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Qué incluye — Español (una línea por ítem)" htmlFor="featuresEs">
-            <textarea
-              id="featuresEs"
-              name="featuresEs"
-              rows={5}
-              defaultValue={initialValues ? toLines(initialValues.features.es) : ""}
-              placeholder={"Actualizaciones técnicas y de seguridad\nMonitoreo de disponibilidad"}
-              className={textareaClasses}
-            />
-          </Field>
-          <Field label="Qué incluye — English (one item per line)" htmlFor="featuresEn">
-            <textarea
-              id="featuresEn"
-              name="featuresEn"
-              rows={5}
-              defaultValue={initialValues ? toLines(initialValues.features.en) : ""}
-              placeholder={"Technical and security updates\nUptime monitoring"}
-              className={textareaClasses}
-            />
-          </Field>
-        </div>
+        <AdminFormSection title="Contenido" description="Qué incluye este plan — una línea por ítem.">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <AdminField label="Español" htmlFor="featuresEs">
+              <textarea
+                id="featuresEs"
+                name="featuresEs"
+                rows={5}
+                defaultValue={initialValues ? toLines(initialValues.features.es) : ""}
+                placeholder={"Actualizaciones técnicas y de seguridad\nMonitoreo de disponibilidad"}
+                className={textareaClasses}
+              />
+            </AdminField>
+            <AdminField label="English" htmlFor="featuresEn">
+              <textarea
+                id="featuresEn"
+                name="featuresEn"
+                rows={5}
+                defaultValue={initialValues ? toLines(initialValues.features.en) : ""}
+                placeholder={"Technical and security updates\nUptime monitoring"}
+                className={textareaClasses}
+              />
+            </AdminField>
+          </div>
+        </AdminFormSection>
       )}
 
       {error && <p className="text-sm text-error">{error}</p>}
@@ -278,16 +280,5 @@ export function PackageForm({
         )}
       </Button>
     </form>
-  );
-}
-
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-fg">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

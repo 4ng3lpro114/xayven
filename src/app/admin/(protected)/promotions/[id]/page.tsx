@@ -28,9 +28,9 @@ export default async function PromotionDetailPage({ params }: PageProps) {
         Promociones
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-fg">{promotion.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{promotion.name}</h1>
           <PromotionStatusBadge status={effectiveStatus} />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -42,7 +42,7 @@ export default async function PromotionDetailPage({ params }: PageProps) {
       </div>
 
       {isArchived && (
-        <div className="mt-6 rounded-lg border border-border-strong bg-bg-raised p-4">
+        <div className="mt-6 rounded-xl border border-border-strong bg-bg-raised p-4 shadow-soft">
           <p className="text-sm text-fg-muted">
             Esta promoción está archivada — es un registro histórico y ya no se puede editar.
           </p>

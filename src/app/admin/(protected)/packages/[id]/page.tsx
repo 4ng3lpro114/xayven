@@ -24,16 +24,16 @@ export default async function PackageDetailPage({ params }: PageProps) {
         Paquetes y mantenimiento
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-fg">{item.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{item.name}</h1>
           <BooleanStatusBadge active={item.isActive} activeLabel="Activo" inactiveLabel="Inactivo" />
         </div>
         <PackageActionButton itemId={item.id} action={item.isActive ? "deactivate" : "activate"} />
       </div>
 
       {!item.isActive && (
-        <div className="mt-6 rounded-lg border border-border-strong bg-bg-raised p-4">
+        <div className="mt-6 rounded-xl border border-border-strong bg-bg-raised p-4 shadow-soft">
           <p className="text-sm text-fg-muted">
             Este producto está inactivo — no aparece públicamente en /services ni /maintenance
             hasta que se reactive.

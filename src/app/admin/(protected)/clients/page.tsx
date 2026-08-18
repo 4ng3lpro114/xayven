@@ -9,6 +9,9 @@ import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge"
 import { AccountBadge } from "@/components/admin/AccountBadge";
 import { CommercialStatusBadge } from "@/components/admin/CommercialStatusBadge";
 import { formatMoney } from "@/lib/payments/format";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
+import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -186,24 +189,27 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-fg">Clientes</h1>
-        <form method="get" className="flex items-center gap-2">
-          {activeFilter.key !== "all" && <input type="hidden" name="filter" value={activeFilter.key} />}
-          {activeAccountFilter.key !== "all" && (
-            <input type="hidden" name="account" value={activeAccountFilter.key} />
-          )}
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="Buscar por nombre o email…"
-            className="w-56 rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none"
-          />
-        </form>
-      </div>
+      <AdminPageHeader
+        eyebrow="Comercial"
+        title="Clientes"
+        action={
+          <form method="get" className="flex items-center gap-2">
+            {activeFilter.key !== "all" && <input type="hidden" name="filter" value={activeFilter.key} />}
+            {activeAccountFilter.key !== "all" && (
+              <input type="hidden" name="account" value={activeAccountFilter.key} />
+            )}
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por nombre o email…"
+              className="w-56 rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none"
+            />
+          </form>
+        }
+      />
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
@@ -239,7 +245,7 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
       </div>
 
       {/* Desktop: tabla. Mobile: tarjetas apiladas — nunca scroll horizontal forzado. */}
-      <div className="mt-6 hidden overflow-x-auto rounded-lg border border-border sm:block">
+      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-border bg-bg-raised shadow-soft sm:block">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
@@ -256,15 +262,15 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
           <tbody>
             {visibleClients.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-fg-subtle">
-                  {emptyMessage}
+                <td colSpan={8} className="px-4 py-10">
+                  <AdminEmptyState icon={Users} title={emptyMessage} />
                 </td>
               </tr>
             )}
             {visibleClients.map((c) => {
               const summary = summaries.get(c.id)!;
               return (
-                <tr key={c.id} className="border-b border-border last:border-0 hover:bg-bg-raised">
+                <tr key={c.id} className="border-b border-border last:border-0 transition-colors hover:bg-bg-elevated">
                   <td className="px-4 py-3">
                     <Link href={`/admin/clients/${c.id}`} className="text-fg hover:text-accent-300">
                       {c.name}
@@ -298,18 +304,14 @@ export default async function AdminClientsPage({ searchParams }: PageProps) {
       </div>
 
       <div className="mt-6 space-y-3 sm:hidden">
-        {visibleClients.length === 0 && (
-          <p className="rounded-lg border border-border px-4 py-8 text-center text-sm text-fg-subtle">
-            {emptyMessage}
-          </p>
-        )}
+        {visibleClients.length === 0 && <AdminEmptyState icon={Users} title={emptyMessage} />}
         {visibleClients.map((c) => {
           const summary = summaries.get(c.id)!;
           return (
             <Link
               key={c.id}
               href={`/admin/clients/${c.id}`}
-              className="block rounded-lg border border-border bg-bg-raised p-4 transition-colors hover:border-border-accent"
+              className="block rounded-xl border border-border bg-bg-raised p-4 shadow-soft transition-colors hover:border-border-accent"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>

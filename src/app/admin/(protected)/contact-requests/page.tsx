@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { Inbox } from "lucide-react";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
 import { listPricingCatalogItems } from "@/lib/db/pricingCatalogStore";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
 import { cn } from "@/lib/utils";
 import type { ContactRequest } from "@/lib/db/types";
 
@@ -65,12 +68,13 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-fg">Solicitudes</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        Envíos del formulario público &ldquo;Crear mi proyecto&rdquo;.
-      </p>
+      <AdminPageHeader
+        eyebrow="Comercial"
+        title="Solicitudes"
+        description="Envíos del formulario público “Crear mi proyecto”."
+      />
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
@@ -88,7 +92,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
       </div>
 
       {/* Desktop: tabla. Mobile: tarjetas apiladas — mismo patrón que /admin/clients. */}
-      <div className="mt-6 hidden overflow-x-auto rounded-lg border border-border sm:block">
+      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-border bg-bg-raised shadow-soft sm:block">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
@@ -105,13 +109,13 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
           <tbody>
             {requests.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-fg-subtle">
-                  {emptyMessage}
+                <td colSpan={8} className="px-4 py-10">
+                  <AdminEmptyState icon={Inbox} title={emptyMessage} />
                 </td>
               </tr>
             )}
             {requests.map((r) => (
-              <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg-raised">
+              <tr key={r.id} className="border-b border-border last:border-0 transition-colors hover:bg-bg-elevated">
                 <td className="px-4 py-3">
                   <Link href={`/admin/contact-requests/${r.id}`} className="text-fg hover:text-accent-300">
                     {r.name}
@@ -143,16 +147,12 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
       </div>
 
       <div className="mt-6 space-y-3 sm:hidden">
-        {requests.length === 0 && (
-          <p className="rounded-lg border border-border px-4 py-8 text-center text-sm text-fg-subtle">
-            {emptyMessage}
-          </p>
-        )}
+        {requests.length === 0 && <AdminEmptyState icon={Inbox} title={emptyMessage} />}
         {requests.map((r) => (
           <Link
             key={r.id}
             href={`/admin/contact-requests/${r.id}`}
-            className="block rounded-lg border border-border bg-bg-raised p-4 transition-colors hover:border-border-accent"
+            className="block rounded-xl border border-border bg-bg-raised p-4 shadow-soft transition-colors hover:border-border-accent"
           >
             <div className="flex items-start justify-between gap-3">
               <div>

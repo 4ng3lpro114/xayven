@@ -24,16 +24,16 @@ export default async function ServiceDetailAdminPage({ params }: PageProps) {
         Servicios
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-fg">{service.content.es.heading}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{service.content.es.heading}</h1>
           <BooleanStatusBadge active={service.isPublished} activeLabel="Publicado" inactiveLabel="Oculto" />
         </div>
         <ServiceActionButton serviceId={service.id} action={service.isPublished ? "unpublish" : "publish"} />
       </div>
 
       {!service.isPublished && (
-        <div className="mt-6 rounded-lg border border-border-strong bg-bg-raised p-4">
+        <div className="mt-6 rounded-xl border border-border-strong bg-bg-raised p-4 shadow-soft">
           <p className="text-sm text-fg-muted">
             Este servicio está oculto — no aparece en /services ni en su ruta individual
             (/services/{service.slug} responde 404) hasta que se publique.

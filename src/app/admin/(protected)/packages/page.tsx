@@ -1,9 +1,12 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, PackageSearch } from "lucide-react";
 import { listPricingCatalogItems } from "@/lib/db/pricingCatalogStore";
 import { formatMoney } from "@/lib/payments/format";
 import { BooleanStatusBadge } from "@/components/admin/BooleanStatusBadge";
 import { PackageActionButton } from "@/components/admin/PackageActions";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminEntityCard } from "@/components/admin/ui/AdminEntityCard";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { PricingCategory } from "@/lib/pricing/types";
 
@@ -17,6 +20,11 @@ export const dynamic = "force-dynamic";
  * table (category="package" vs. "maintenance"), so this is one admin
  * section with a category filter, never two duplicated CRUDs for what
  * is structurally the same entity.
+ *
+ * Admin UI Polish — restyled onto AdminPageHeader/AdminEntityCard (the
+ * shared list-card, see its own doc comment for why). No data, no route,
+ * no field changed — every price/name/slug still comes straight from
+ * listPricingCatalogItems(), only how it's laid out changed.
  */
 const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "Todos" },
@@ -42,25 +50,21 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-fg">Paquetes y mantenimiento</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Pricing Core — fuente única de precios para Services y Maintenance.
-          </p>
-        </div>
-        <Link
-          href="/admin/packages/new"
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-400"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Nuevo producto
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Pricing Core"
+        title="Paquetes y mantenimiento"
+        description="Fuente única de precios para Services y Maintenance — cada cambio aquí se refleja de inmediato en la web pública, en XAYVEN AI y en el resolver de International Pricing."
+        action={
+          <Button href="/admin/packages/new" size="md">
+            <Plus className="size-4" aria-hidden="true" />
+            Nuevo producto
+          </Button>
+        }
+      />
 
       <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
-          <Link
+          <a
             key={f.key}
             href={buildFilterHref(f.key)}
             className={cn(
@@ -71,46 +75,48 @@ export default async function AdminPackagesPage({ searchParams }: PageProps) {
             )}
           >
             {f.label}
-          </Link>
+          </a>
         ))}
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.length === 0 && (
-          <p className="col-span-full py-10 text-center text-sm text-fg-subtle">
-            No hay productos en esta categoría todavía.
-          </p>
+          <AdminEmptyState
+            icon={PackageSearch}
+            title="No hay productos en esta categoría todavía"
+            description="Crea el primero con “Nuevo producto” arriba."
+          />
         )}
-        {items.map((item) => (
-          <div key={item.id} className="rounded-lg border border-border bg-bg-raised p-5">
-            <div className="flex items-start justify-between gap-2">
-              <Link href={`/admin/packages/${item.id}`} className="text-sm font-semibold text-fg hover:text-accent-300">
-                {item.name}
-              </Link>
-              <BooleanStatusBadge active={item.isActive} activeLabel="Activo" inactiveLabel="Inactivo" />
-            </div>
-
-            <p className="mt-2 font-mono text-xs uppercase tracking-[0.1em] text-fg-subtle">
-              {item.category === "package" ? "Paquete web" : "Mantenimiento"} · {item.slug}
-            </p>
-
-            <p className="mt-3 text-lg font-semibold text-accent-300">
-              {item.priceType === "FROM" ? "Desde " : ""}
-              {formatMoney(item.basePrice, item.currency)}
-              {item.billingInterval === "MONTHLY" ? "/mes" : ""}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href={`/admin/packages/${item.id}`}
-                className="inline-flex items-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg"
-              >
-                Editar
-              </Link>
-              <PackageActionButton itemId={item.id} action={item.isActive ? "deactivate" : "activate"} />
-            </div>
-          </div>
-        ))}
+        {items.map((item) => {
+          const featureCount = item.features.es.length;
+          return (
+            <AdminEntityCard
+              key={item.id}
+              href={`/admin/packages/${item.id}`}
+              title={item.name}
+              badge={<BooleanStatusBadge active={item.isActive} activeLabel="Activo" inactiveLabel="Inactivo" />}
+              meta={`${item.category === "package" ? "Paquete web" : "Mantenimiento"} · ${item.slug}`}
+              highlight={
+                <>
+                  {item.priceType === "FROM" ? "Desde " : ""}
+                  {formatMoney(item.basePrice, item.currency)}
+                  {item.billingInterval === "MONTHLY" ? "/mes" : ""}
+                </>
+              }
+              description={
+                item.billingInterval === "ONE_TIME" ? "Pago único" : featureCount > 0 ? `${featureCount} características` : undefined
+              }
+              footer={
+                <>
+                  <Button href={`/admin/packages/${item.id}`} variant="secondary" size="md" className="px-3 py-1.5 text-xs">
+                    Editar
+                  </Button>
+                  <PackageActionButton itemId={item.id} action={item.isActive ? "deactivate" : "activate"} />
+                </>
+              }
+            />
+          );
+        })}
       </div>
     </div>
   );

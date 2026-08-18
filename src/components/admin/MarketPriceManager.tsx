@@ -18,6 +18,12 @@ const inputClasses =
  * resolveOfficialPrice() reads from. Currency is fixed to the market's
  * own currency (never a free field here — see
  * MarketCurrencyMismatchError's whole reason for existing).
+ *
+ * Admin UI Polish — this used to be a literal `<table>` (the single
+ * clearest "Excel" moment in the whole Admin per the audit). Same data,
+ * same 3 inputs + submit per item, same API calls — now a list of
+ * responsive grid rows inside one rounded container instead of table
+ * chrome, so it survives mobile without a forced horizontal scroll.
  */
 export function MarketPriceManager({
   marketId,
@@ -31,31 +37,25 @@ export function MarketPriceManager({
   existingPrices: PricingMarketPrice[];
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
-        <thead>
-          <tr>
-            <th className="border-b border-border py-2 pr-4 text-left font-medium text-fg-subtle">Producto</th>
-            <th className="border-b border-border py-2 pr-4 text-left font-medium text-fg-subtle">Tipo</th>
-            <th className="border-b border-border py-2 pr-4 text-left font-medium text-fg-subtle">
-              Precio ({marketCurrency})
-            </th>
-            <th className="border-b border-border py-2 pr-4 text-left font-medium text-fg-subtle">Activo</th>
-            <th className="border-b border-border py-2 text-left font-medium text-fg-subtle" />
-          </tr>
-        </thead>
-        <tbody>
-          {catalogItems.map((item) => (
-            <MarketPriceRow
-              key={item.id}
-              marketId={marketId}
-              marketCurrency={marketCurrency}
-              item={item}
-              existing={existingPrices.find((p) => p.pricingCatalogId === item.id) ?? null}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <div className="hidden grid-cols-[1fr_7rem_9rem_4.5rem_8rem] gap-3 border-b border-border pb-2 text-xs font-medium text-fg-subtle sm:grid">
+        <span>Producto</span>
+        <span>Tipo</span>
+        <span>Precio ({marketCurrency})</span>
+        <span>Activo</span>
+        <span />
+      </div>
+      <div className="divide-y divide-border">
+        {catalogItems.map((item) => (
+          <MarketPriceRow
+            key={item.id}
+            marketId={marketId}
+            marketCurrency={marketCurrency}
+            item={item}
+            existing={existingPrices.find((p) => p.pricingCatalogId === item.id) ?? null}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -74,6 +74,7 @@ function MarketPriceRow({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const formId = `price-form-${item.id}`;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -118,43 +119,44 @@ function MarketPriceRow({
   }
 
   return (
-    <tr>
-      <td className="border-b border-border py-2 pr-4">
+    <div className="grid grid-cols-2 items-center gap-3 py-3 sm:grid-cols-[1fr_7rem_9rem_4.5rem_8rem]">
+      <div className="col-span-2 sm:col-span-1">
         <span className="font-medium text-fg">{item.name}</span>
         <span className="ml-2 font-mono text-xs text-fg-subtle">{item.slug}</span>
-      </td>
-      <td className="border-b border-border py-2 pr-4">
-        <form id={`price-form-${item.id}`} onSubmit={handleSubmit} className="contents">
-          <select name="priceType" defaultValue={existing?.priceType ?? item.priceType} className={inputClasses}>
-            <option value="FIXED">Fijo</option>
-            <option value="FROM">Desde</option>
-          </select>
-        </form>
-      </td>
-      <td className="border-b border-border py-2 pr-4">
+      </div>
+
+      <form id={formId} onSubmit={handleSubmit} className="contents">
+        <select name="priceType" defaultValue={existing?.priceType ?? item.priceType} className={inputClasses}>
+          <option value="FIXED">Fijo</option>
+          <option value="FROM">Desde</option>
+        </select>
+      </form>
+
+      <input
+        form={formId}
+        name="price"
+        type="number"
+        min={1}
+        step={1}
+        placeholder="Sin definir"
+        defaultValue={existing?.price}
+        className={`${inputClasses} w-full`}
+      />
+
+      <label className="flex items-center gap-2 text-xs text-fg-muted sm:justify-center">
         <input
-          form={`price-form-${item.id}`}
-          name="price"
-          type="number"
-          min={1}
-          step={1}
-          placeholder="Sin definir"
-          defaultValue={existing?.price}
-          className={`${inputClasses} w-32`}
-        />
-      </td>
-      <td className="border-b border-border py-2 pr-4">
-        <input
-          form={`price-form-${item.id}`}
+          form={formId}
           type="checkbox"
           name="isActive"
           defaultChecked={existing?.isActive ?? true}
           className="size-4 rounded border-border-strong"
         />
-      </td>
-      <td className="border-b border-border py-2">
+        <span className="sm:hidden">Activo</span>
+      </label>
+
+      <div>
         <button
-          form={`price-form-${item.id}`}
+          form={formId}
           type="submit"
           disabled={loading}
           className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg disabled:opacity-50"
@@ -163,7 +165,7 @@ function MarketPriceRow({
           {existing ? "Actualizar" : "Definir precio"}
         </button>
         {error && <p className="mt-1 text-[0.7rem] text-error">{error}</p>}
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }

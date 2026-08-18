@@ -41,6 +41,7 @@ import { PromotionAttributionSummary } from "@/components/admin/statistics/Promo
 import { StatisticsTabs, isValidStatisticsTab, type StatisticsTab } from "@/components/admin/statistics/StatisticsTabs";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import { cn } from "@/lib/utils";
 import type { PaymentStatus, PaymentType } from "@/lib/payments/types";
 import type { LeadStatus } from "@/lib/db/types";
@@ -112,14 +113,9 @@ export default async function AdminStatisticsPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-fg">Estadísticas</h1>
-          <p className="mt-1 text-sm text-fg-muted">Centro de inteligencia administrativa de XAYVEN</p>
-        </div>
-      </div>
+      <AdminPageHeader eyebrow="Insights" title="Estadísticas" description="Centro de inteligencia administrativa de XAYVEN" />
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {STATISTICS_PERIODS.map((p) => (
           <Link
             key={p.key}

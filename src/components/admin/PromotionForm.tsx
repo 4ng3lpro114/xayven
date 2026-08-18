@@ -4,10 +4,10 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AdminFormSection, AdminField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { Promotion, PromotionAudience, PromotionDiscountType } from "@/lib/promotions/types";
 
-const inputClasses =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none";
+const inputClasses = adminInputClasses;
 
 const AUDIENCE_LABELS: Record<PromotionAudience, string> = {
   new_users: "Usuarios nuevos",
@@ -125,129 +125,137 @@ export function PromotionForm({
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-5">
-      <Field label="Nombre" htmlFor="name">
-        <input
-          id="name"
-          name="name"
-          type="text"
-          required
-          defaultValue={initialValues?.name}
-          placeholder="Promoción de agosto"
-          className={inputClasses}
-        />
-      </Field>
-
-      <Field label="Texto visible" htmlFor="text">
-        <textarea
-          id="text"
-          name="text"
-          required
-          rows={3}
-          defaultValue={initialValues?.text}
-          placeholder="🔥 ¡20% de descuento durante agosto!"
-          className={inputClasses}
-        />
-      </Field>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Tipo de descuento" htmlFor="discountType">
-          <select
-            id="discountType"
-            name="discountType"
-            defaultValue={discountType}
-            onChange={(e) => setDiscountType(e.target.value as PromotionDiscountType)}
+      <AdminFormSection title="Contenido">
+        <AdminField label="Nombre" htmlFor="name">
+          <input
+            id="name"
+            name="name"
+            type="text"
+            required
+            defaultValue={initialValues?.name}
+            placeholder="Promoción de agosto"
             className={inputClasses}
-          >
-            {Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => (
+          />
+        </AdminField>
+
+        <AdminField label="Texto visible" htmlFor="text">
+          <textarea
+            id="text"
+            name="text"
+            required
+            rows={3}
+            defaultValue={initialValues?.text}
+            placeholder="🔥 ¡20% de descuento durante agosto!"
+            className={inputClasses}
+          />
+        </AdminField>
+      </AdminFormSection>
+
+      <AdminFormSection title="Descuento">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Tipo de descuento" htmlFor="discountType">
+            <select
+              id="discountType"
+              name="discountType"
+              defaultValue={discountType}
+              onChange={(e) => setDiscountType(e.target.value as PromotionDiscountType)}
+              className={inputClasses}
+            >
+              {Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </AdminField>
+          <AdminField label={discountType === "percentage" ? "Porcentaje" : "Valor"} htmlFor="discountValue">
+            <input
+              id="discountValue"
+              name="discountValue"
+              type="number"
+              min={1}
+              max={discountType === "percentage" ? 100 : undefined}
+              step={discountType === "percentage" ? 1 : 1000}
+              required
+              defaultValue={initialValues?.discountValue}
+              className={inputClasses}
+            />
+          </AdminField>
+        </div>
+
+        {discountType !== "percentage" && (
+          <AdminField label="Moneda" htmlFor="currency">
+            <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={inputClasses}>
+              <option value="COP">COP</option>
+              <option value="USD">USD</option>
+            </select>
+          </AdminField>
+        )}
+      </AdminFormSection>
+
+      <AdminFormSection title="Vigencia y audiencia">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Fecha inicio" htmlFor="startAt">
+            <input
+              id="startAt"
+              name="startAt"
+              type="datetime-local"
+              required
+              defaultValue={initialValues ? toDatetimeLocalValue(initialValues.startAt) : undefined}
+              className={inputClasses}
+            />
+          </AdminField>
+          <AdminField label="Fecha final" htmlFor="endAt">
+            <input
+              id="endAt"
+              name="endAt"
+              type="datetime-local"
+              required
+              defaultValue={initialValues ? toDatetimeLocalValue(initialValues.endAt) : undefined}
+              className={inputClasses}
+            />
+          </AdminField>
+        </div>
+
+        <AdminField label="Audiencia" htmlFor="audience">
+          <select id="audience" name="audience" defaultValue={initialValues?.audience ?? "all"} className={inputClasses}>
+            {Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
           </select>
-        </Field>
-        <Field label={discountType === "percentage" ? "Porcentaje" : "Valor"} htmlFor="discountValue">
+        </AdminField>
+      </AdminFormSection>
+
+      <AdminFormSection title="CTA">
+        <AdminField label="Texto del CTA" htmlFor="ctaLabel">
           <input
-            id="discountValue"
-            name="discountValue"
-            type="number"
-            min={1}
-            max={discountType === "percentage" ? 100 : undefined}
-            step={discountType === "percentage" ? 1 : 1000}
+            id="ctaLabel"
+            name="ctaLabel"
+            type="text"
             required
-            defaultValue={initialValues?.discountValue}
+            defaultValue={initialValues?.ctaLabel}
+            placeholder="Quiero aprovecharla"
             className={inputClasses}
           />
-        </Field>
-      </div>
+        </AdminField>
 
-      {discountType !== "percentage" && (
-        <Field label="Moneda" htmlFor="currency">
-          <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={inputClasses}>
-            <option value="COP">COP</option>
-            <option value="USD">USD</option>
-          </select>
-        </Field>
-      )}
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Fecha inicio" htmlFor="startAt">
-          <input
-            id="startAt"
-            name="startAt"
-            type="datetime-local"
-            required
-            defaultValue={initialValues ? toDatetimeLocalValue(initialValues.startAt) : undefined}
+        <AdminField label="Mensaje del CTA (opcional)" htmlFor="ctaMessage">
+          <textarea
+            id="ctaMessage"
+            name="ctaMessage"
+            rows={2}
+            defaultValue={initialValues?.ctaMessage ?? ""}
+            placeholder="Hola, quiero aprovechar la promoción de agosto del 20%."
             className={inputClasses}
           />
-        </Field>
-        <Field label="Fecha final" htmlFor="endAt">
-          <input
-            id="endAt"
-            name="endAt"
-            type="datetime-local"
-            required
-            defaultValue={initialValues ? toDatetimeLocalValue(initialValues.endAt) : undefined}
-            className={inputClasses}
-          />
-        </Field>
-      </div>
-
-      <Field label="Audiencia" htmlFor="audience">
-        <select id="audience" name="audience" defaultValue={initialValues?.audience ?? "all"} className={inputClasses}>
-          {Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <Field label="Texto del CTA" htmlFor="ctaLabel">
-        <input
-          id="ctaLabel"
-          name="ctaLabel"
-          type="text"
-          required
-          defaultValue={initialValues?.ctaLabel}
-          placeholder="Quiero aprovecharla"
-          className={inputClasses}
-        />
-      </Field>
-
-      <Field label="Mensaje del CTA (opcional)" htmlFor="ctaMessage">
-        <textarea
-          id="ctaMessage"
-          name="ctaMessage"
-          rows={2}
-          defaultValue={initialValues?.ctaMessage ?? ""}
-          placeholder="Hola, quiero aprovechar la promoción de agosto del 20%."
-          className={inputClasses}
-        />
-        <p className="mt-1.5 text-xs text-fg-subtle">
-          Reservado para cuando el botón abra XAYVEN AI con este mensaje — todavía no está
-          conectado.
-        </p>
-      </Field>
+          <p className="mt-1.5 text-xs text-fg-subtle">
+            Reservado para cuando el botón abra XAYVEN AI con este mensaje — todavía no está
+            conectado.
+          </p>
+        </AdminField>
+      </AdminFormSection>
 
       {error && <p className="text-sm text-error">{error}</p>}
 
@@ -261,24 +269,5 @@ export function PromotionForm({
         )}
       </Button>
     </form>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-fg">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

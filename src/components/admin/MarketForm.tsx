@@ -4,10 +4,8 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AdminFormSection, AdminField, AdminCheckboxField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { MarketFallbackBehavior, PricingMarket } from "@/lib/pricing/market/types";
-
-const inputClasses =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none disabled:opacity-50";
 
 const FALLBACK_LABELS: Record<MarketFallbackBehavior, string> = {
   QUOTE_ONLY: "Solo cotización (no muestra ningún precio)",
@@ -25,9 +23,13 @@ export interface MarketFormValues {
 
 /**
  * International Pricing — Phase D Admin. Mirrors PackageForm.tsx's exact
- * structure (same inputClasses, same Field helper, same FormData-based
- * submit). `code` is only editable on CREATE — identical discipline to
- * PackageForm's slug/category/billingInterval.
+ * structure (same FormData-based submit). `code` is only editable on
+ * CREATE — identical discipline to PackageForm's slug/category/
+ * billingInterval.
+ *
+ * Admin UI Polish — grouped into AdminFormSection blocks (Identificación /
+ * Política comercial / Estado) instead of a flat label-input run. Field
+ * names, submit payload, and validation are byte-for-byte the same.
  */
 export function MarketForm({
   mode,
@@ -98,75 +100,71 @@ export function MarketForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl space-y-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Código" htmlFor="code">
-          <input
-            id="code"
-            name="code"
-            type="text"
-            required
-            disabled={mode === "edit"}
-            defaultValue={initialValues?.code}
-            placeholder="US"
-            pattern="[A-Z0-9_-]+"
-            className={inputClasses}
-          />
-        </Field>
-        <Field label="Nombre" htmlFor="name">
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            defaultValue={initialValues?.name}
-            placeholder="United States"
-            className={inputClasses}
-          />
-        </Field>
-      </div>
+    <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
+      <AdminFormSection title="Identificación">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <AdminField label="Código" htmlFor="code">
+            <input
+              id="code"
+              name="code"
+              type="text"
+              required
+              disabled={mode === "edit"}
+              defaultValue={initialValues?.code}
+              placeholder="US"
+              pattern="[A-Z0-9_-]+"
+              className={adminInputClasses}
+            />
+          </AdminField>
+          <AdminField label="Nombre" htmlFor="name">
+            <input
+              id="name"
+              name="name"
+              type="text"
+              required
+              defaultValue={initialValues?.name}
+              placeholder="United States"
+              className={adminInputClasses}
+            />
+          </AdminField>
+        </div>
+        <AdminField label="Moneda" htmlFor="currency">
+          <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={adminInputClasses}>
+            <option value="COP">COP</option>
+            <option value="USD">USD</option>
+          </select>
+        </AdminField>
+      </AdminFormSection>
 
-      <Field label="Moneda" htmlFor="currency">
-        <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={inputClasses}>
-          <option value="COP">COP</option>
-          <option value="USD">USD</option>
-        </select>
-      </Field>
+      <AdminFormSection
+        title="Política comercial"
+        description="Decide qué precio se muestra cuando este mercado no tiene un precio oficial propio."
+      >
+        <AdminCheckboxField name="conversionAllowed" defaultChecked={initialValues?.conversionAllowed ?? false}>
+          Permitir conversión dinámica cuando no exista un precio propio para este mercado (Phase C)
+        </AdminCheckboxField>
 
-      <label className="flex items-center gap-2.5 text-sm text-fg">
-        <input
-          type="checkbox"
-          name="conversionAllowed"
-          defaultChecked={initialValues?.conversionAllowed ?? false}
-          className="size-4 rounded border-border-strong"
-        />
-        Permitir conversión dinámica cuando no exista un precio propio para este mercado (Phase C)
-      </label>
+        <AdminField label="Política de fallback (sin precio propio ni conversión disponible)" htmlFor="fallbackBehavior">
+          <select
+            id="fallbackBehavior"
+            name="fallbackBehavior"
+            defaultValue={initialValues?.fallbackBehavior ?? "QUOTE_ONLY"}
+            className={adminInputClasses}
+          >
+            {Object.entries(FALLBACK_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </AdminField>
+      </AdminFormSection>
 
-      <Field label="Política de fallback (sin precio propio ni conversión disponible)" htmlFor="fallbackBehavior">
-        <select
-          id="fallbackBehavior"
-          name="fallbackBehavior"
-          defaultValue={initialValues?.fallbackBehavior ?? "QUOTE_ONLY"}
-          className={inputClasses}
-        >
-          {Object.entries(FALLBACK_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <label className="flex items-center gap-2.5 text-sm text-fg">
-        <input
-          type="checkbox"
-          name="isActive"
-          defaultChecked={initialValues?.isActive ?? true}
-          className="size-4 rounded border-border-strong"
-        />
-        Activo (visitantes pueden resolver a este mercado)
-      </label>
+      <AdminFormSection title="Estado">
+        <AdminCheckboxField name="isActive" defaultChecked={initialValues?.isActive ?? true}>
+          Activo (visitantes pueden resolver a este mercado)
+        </AdminCheckboxField>
+      </AdminFormSection>
 
       {error && <p className="text-sm text-error">{error}</p>}
 
@@ -180,16 +178,5 @@ export function MarketForm({
         )}
       </Button>
     </form>
-  );
-}
-
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-fg">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

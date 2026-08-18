@@ -13,6 +13,7 @@ import {
   ContactRequestConvertClientButton,
   ContactRequestDeleteButton,
 } from "@/components/admin/ContactRequestActions";
+import { AdminSection } from "@/components/admin/ui/AdminSection";
 
 export const dynamic = "force-dynamic";
 
@@ -70,9 +71,9 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
         Volver
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-fg">{request.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{request.name}</h1>
           <p className="mt-1 text-sm text-fg-muted">
             {request.company || "Sin empresa"} · {new Date(request.createdAt).toLocaleString("es-CO")}
           </p>
@@ -192,38 +193,34 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* DATOS DEL CLIENTE */}
-      <h2 className="mt-10 text-xs font-mono uppercase tracking-[0.1em] text-fg-subtle">
-        Datos del cliente
-      </h2>
-      <div className="mt-3 grid gap-4 sm:grid-cols-3">
-        <Field label="Nombre" value={request.name} />
-        <Field label="Email" value={request.email} />
-        <Field label="Empresa" value={request.company || "—"} />
-      </div>
+      <div className="mt-8 space-y-6">
+        <AdminSection title="Datos del cliente">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Nombre" value={request.name} />
+            <Field label="Email" value={request.email} />
+            <Field label="Empresa" value={request.company || "—"} />
+          </div>
+        </AdminSection>
 
-      {/* PROYECTO */}
-      <h2 className="mt-8 text-xs font-mono uppercase tracking-[0.1em] text-fg-subtle">Proyecto</h2>
-      <div className="mt-3 grid gap-4 sm:grid-cols-3">
-        <Field label="Tipo de proyecto" value={request.projectType} />
-        <Field label="Presupuesto" value={request.budget} />
-        <Field label="Plan solicitado" value={requestedPlanLabel} />
-      </div>
+        <AdminSection title="Proyecto">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Tipo de proyecto" value={request.projectType} />
+            <Field label="Presupuesto" value={request.budget} />
+            <Field label="Plan solicitado" value={requestedPlanLabel} />
+          </div>
+        </AdminSection>
 
-      {/* MENSAJE */}
-      <h2 className="mt-8 text-xs font-mono uppercase tracking-[0.1em] text-fg-subtle">Mensaje</h2>
-      <div className="mt-3 rounded-lg border border-border bg-bg-elevated/40 p-5">
-        <p className="whitespace-pre-wrap text-sm text-fg">{request.message}</p>
-      </div>
+        <AdminSection title="Mensaje">
+          <p className="whitespace-pre-wrap text-sm text-fg">{request.message}</p>
+        </AdminSection>
 
-      {/* INFORMACIÓN DE RECEPCIÓN */}
-      <h2 className="mt-8 text-xs font-mono uppercase tracking-[0.1em] text-fg-subtle">
-        Información de recepción
-      </h2>
-      <div className="mt-3 grid gap-4 sm:grid-cols-3">
-        <Field label="Fecha" value={new Date(request.createdAt).toLocaleDateString("es-CO")} />
-        <Field label="Hora" value={new Date(request.createdAt).toLocaleTimeString("es-CO")} />
-        <Field label="Estado" value={<ContactRequestStatusBadge status={request.status} />} />
+        <AdminSection title="Información de recepción">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Fecha" value={new Date(request.createdAt).toLocaleDateString("es-CO")} />
+            <Field label="Hora" value={new Date(request.createdAt).toLocaleTimeString("es-CO")} />
+            <Field label="Estado" value={<ContactRequestStatusBadge status={request.status} />} />
+          </div>
+        </AdminSection>
       </div>
     </div>
   );
@@ -231,7 +228,7 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-bg-raised p-4">
+    <div className="rounded-lg border border-border bg-bg-elevated/40 p-4">
       <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">{label}</p>
       <p className="mt-1 text-sm text-fg">{value}</p>
     </div>

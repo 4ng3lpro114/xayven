@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { toLines, fromLines, toFaqText, parseFaqText } from "@/lib/services/textLists";
+import { AdminFormSection, AdminField, AdminCheckboxField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { Service, ServiceContent } from "@/lib/services/types";
 import type { Locale } from "@/lib/i18n/config";
 
-const inputClasses =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none disabled:opacity-50";
+const inputClasses = adminInputClasses;
 const textareaClasses = `${inputClasses} font-mono text-xs`;
 
 const LOCALES: Locale[] = ["es", "en"];
@@ -137,64 +137,62 @@ export function ServiceForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-3xl space-y-8">
-      <div className="grid gap-5 sm:grid-cols-3">
-        <Field label="Slug" htmlFor="slug">
-          <input
-            id="slug"
-            name="slug"
-            type="text"
-            required
-            disabled={mode === "edit"}
-            defaultValue={initialValues?.slug}
-            placeholder="seo"
-            pattern="[a-z0-9-]+"
-            className={inputClasses}
-          />
-        </Field>
-        <Field label="Orden de despliegue" htmlFor="displayOrder">
-          <input
-            id="displayOrder"
-            name="displayOrder"
-            type="number"
-            min={0}
-            required
-            defaultValue={initialValues?.displayOrder ?? 0}
-            className={inputClasses}
-          />
-        </Field>
-        <Field label="Paquetes relacionados" htmlFor="relatedPackageSlugs">
-          <input
-            id="relatedPackageSlugs"
-            name="relatedPackageSlugs"
-            type="text"
-            defaultValue={initialValues?.relatedPackageSlugs.join(", ")}
-            placeholder="start, professional, business"
-            className={inputClasses}
-          />
-          <p className="mt-1.5 text-xs text-fg-subtle">Slugs de Pricing Core separados por coma. Vacío = sin paquete cerrado (cotización).</p>
-        </Field>
-      </div>
+    <form onSubmit={handleSubmit} className="max-w-3xl space-y-5">
+      <AdminFormSection title="Identificación">
+        <div className="grid gap-5 sm:grid-cols-3">
+          <AdminField label="Slug" htmlFor="slug">
+            <input
+              id="slug"
+              name="slug"
+              type="text"
+              required
+              disabled={mode === "edit"}
+              defaultValue={initialValues?.slug}
+              placeholder="seo"
+              pattern="[a-z0-9-]+"
+              className={inputClasses}
+            />
+          </AdminField>
+          <AdminField label="Orden de despliegue" htmlFor="displayOrder">
+            <input
+              id="displayOrder"
+              name="displayOrder"
+              type="number"
+              min={0}
+              required
+              defaultValue={initialValues?.displayOrder ?? 0}
+              className={inputClasses}
+            />
+          </AdminField>
+          <AdminField label="Paquetes relacionados" htmlFor="relatedPackageSlugs">
+            <input
+              id="relatedPackageSlugs"
+              name="relatedPackageSlugs"
+              type="text"
+              defaultValue={initialValues?.relatedPackageSlugs.join(", ")}
+              placeholder="start, professional, business"
+              className={inputClasses}
+            />
+            <p className="mt-1.5 text-xs text-fg-subtle">Slugs de Pricing Core separados por coma. Vacío = sin paquete cerrado (cotización).</p>
+          </AdminField>
+        </div>
+      </AdminFormSection>
 
-      <label className="flex items-center gap-2.5 text-sm text-fg">
-        <input
-          type="checkbox"
-          name="isPublished"
-          defaultChecked={initialValues?.isPublished ?? true}
-          className="size-4 rounded border-border-strong"
-        />
-        Publicado (visible en /services)
-      </label>
+      <AdminFormSection title="Estado">
+        <AdminCheckboxField name="isPublished" defaultChecked={initialValues?.isPublished ?? true}>
+          Publicado (visible en /services)
+        </AdminCheckboxField>
+      </AdminFormSection>
 
       {LOCALES.map((locale) => {
         const content = initialValues?.content[locale];
         const prefix = `content.${locale}.`;
         const localeFaqErrors = faqErrors[locale];
         return (
-          <fieldset key={locale} className="rounded-lg border border-border p-5">
-            <legend className="px-2 text-sm font-semibold text-fg">{LOCALE_LABELS[locale]}</legend>
+          <fieldset key={locale} className="rounded-xl border border-border bg-bg-raised p-6 shadow-soft">
+            <legend className="px-2 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-accent-300">{LOCALE_LABELS[locale]}</legend>
             <div className="space-y-5">
-              <Field label="Título (H1)" htmlFor={`${prefix}heading`}>
+              <AdminField label="Título (H1)" htmlFor={`${prefix}heading`}>
                 <input
                   id={`${prefix}heading`}
                   name={`${prefix}heading`}
@@ -203,8 +201,8 @@ export function ServiceForm({
                   defaultValue={content?.heading}
                   className={inputClasses}
                 />
-              </Field>
-              <Field label="Tagline" htmlFor={`${prefix}tagline`}>
+              </AdminField>
+              <AdminField label="Tagline" htmlFor={`${prefix}tagline`}>
                 <input
                   id={`${prefix}tagline`}
                   name={`${prefix}tagline`}
@@ -213,11 +211,11 @@ export function ServiceForm({
                   defaultValue={content?.tagline}
                   className={inputClasses}
                 />
-              </Field>
-              <Field label="Definición (¿Qué es?)" htmlFor={`${prefix}definition`}>
+              </AdminField>
+              <AdminField label="Definición (¿Qué es?)" htmlFor={`${prefix}definition`}>
                 <textarea id={`${prefix}definition`} name={`${prefix}definition`} rows={2} required defaultValue={content?.definition} className={inputClasses} />
-              </Field>
-              <Field label="Problema (una línea por ítem)" htmlFor={`${prefix}problem`}>
+              </AdminField>
+              <AdminField label="Problema (una línea por ítem)" htmlFor={`${prefix}problem`}>
                 <textarea
                   id={`${prefix}problem`}
                   name={`${prefix}problem`}
@@ -226,11 +224,11 @@ export function ServiceForm({
                   defaultValue={content ? toLines(content.problem) : ""}
                   className={textareaClasses}
                 />
-              </Field>
-              <Field label="Solución XAYVEN" htmlFor={`${prefix}solution`}>
+              </AdminField>
+              <AdminField label="Solución XAYVEN" htmlFor={`${prefix}solution`}>
                 <textarea id={`${prefix}solution`} name={`${prefix}solution`} rows={3} required defaultValue={content?.solution} className={inputClasses} />
-              </Field>
-              <Field label="Qué incluye (una línea por ítem)" htmlFor={`${prefix}includes`}>
+              </AdminField>
+              <AdminField label="Qué incluye (una línea por ítem)" htmlFor={`${prefix}includes`}>
                 <textarea
                   id={`${prefix}includes`}
                   name={`${prefix}includes`}
@@ -239,9 +237,9 @@ export function ServiceForm({
                   defaultValue={content ? toLines(content.includes) : ""}
                   className={textareaClasses}
                 />
-              </Field>
+              </AdminField>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Ideal si... (una línea por ítem)" htmlFor={`${prefix}idealIf`}>
+                <AdminField label="Ideal si... (una línea por ítem)" htmlFor={`${prefix}idealIf`}>
                   <textarea
                     id={`${prefix}idealIf`}
                     name={`${prefix}idealIf`}
@@ -249,8 +247,8 @@ export function ServiceForm({
                     defaultValue={content ? toLines(content.forWhom.idealIf) : ""}
                     className={textareaClasses}
                   />
-                </Field>
-                <Field label="No es ideal si... (opcional)" htmlFor={`${prefix}notIdealIf`}>
+                </AdminField>
+                <AdminField label="No es ideal si... (opcional)" htmlFor={`${prefix}notIdealIf`}>
                   <textarea
                     id={`${prefix}notIdealIf`}
                     name={`${prefix}notIdealIf`}
@@ -258,9 +256,9 @@ export function ServiceForm({
                     defaultValue={content ? toLines(content.forWhom.notIdealIf) : ""}
                     className={textareaClasses}
                   />
-                </Field>
+                </AdminField>
               </div>
-              <Field label="Casos de uso (una línea por ítem, opcional)" htmlFor={`${prefix}useCases`}>
+              <AdminField label="Casos de uso (una línea por ítem, opcional)" htmlFor={`${prefix}useCases`}>
                 <textarea
                   id={`${prefix}useCases`}
                   name={`${prefix}useCases`}
@@ -268,8 +266,8 @@ export function ServiceForm({
                   defaultValue={content ? toLines(content.useCases) : ""}
                   className={textareaClasses}
                 />
-              </Field>
-              <Field label="FAQ" htmlFor={`${prefix}faq`}>
+              </AdminField>
+              <AdminField label="FAQ" htmlFor={`${prefix}faq`}>
                 <textarea
                   id={`${prefix}faq`}
                   name={`${prefix}faq`}
@@ -299,7 +297,7 @@ export function ServiceForm({
                     </ul>
                   </div>
                 )}
-              </Field>
+              </AdminField>
             </div>
           </fieldset>
         );
@@ -317,16 +315,5 @@ export function ServiceForm({
         )}
       </Button>
     </form>
-  );
-}
-
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-fg">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

@@ -6,13 +6,19 @@ import { Loader2 } from "lucide-react";
 import type { CurrencyConfig } from "@/lib/pricing/currency/types";
 
 const inputClasses =
-  "w-24 rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-fg focus:border-accent-400 focus:outline-none disabled:opacity-50";
+  "w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-fg focus:border-accent-400 focus:outline-none disabled:opacity-50";
 
 /**
  * International Pricing — Phase D Admin. One row per currency —
  * currency_config is keyed by `currency` itself (see
  * currencyConfigStore.ts's setCurrencyConfig() doc comment), so this is a
  * single create-or-replace form per row, not a separate create/edit flow.
+ *
+ * Admin UI Polish — was a literal `<tr>` inside a `<table>` for a set of
+ * exactly 2 currencies today — a table is the wrong shape for "a couple
+ * of named configuration records", per the audit's own "cards when an
+ * entity needs context" principle. Same fields, same single POST to
+ * /api/admin/currency-config, now one card per currency.
  */
 export function CurrencyConfigForm({ config }: { config: CurrencyConfig }) {
   const router = useRouter();
@@ -48,11 +54,23 @@ export function CurrencyConfigForm({ config }: { config: CurrencyConfig }) {
   }
 
   return (
-    <tr>
-      <td className="border-b border-border py-3 pr-4 font-mono text-sm font-medium text-fg">{config.currency}</td>
-      <td className="border-b border-border py-3 pr-4">
-        <form id={`currency-form-${config.currency}`} onSubmit={handleSubmit} className="contents">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-4 rounded-xl border border-border bg-bg-raised p-6 shadow-soft sm:flex-row sm:items-end"
+    >
+      <div className="flex items-center gap-2.5 sm:w-28">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-500/10 font-mono text-xs font-semibold text-accent-300">
+          {config.currency}
+        </span>
+      </div>
+
+      <div className="grid flex-1 grid-cols-2 gap-4">
+        <div>
+          <label htmlFor={`roundingUnit-${config.currency}`} className="mb-1.5 block text-xs font-medium text-fg-muted">
+            Unidad de redondeo
+          </label>
           <input
+            id={`roundingUnit-${config.currency}`}
             name="roundingUnit"
             type="number"
             min={1}
@@ -61,32 +79,35 @@ export function CurrencyConfigForm({ config }: { config: CurrencyConfig }) {
             required
             className={inputClasses}
           />
-        </form>
-      </td>
-      <td className="border-b border-border py-3 pr-4">
-        <input
-          form={`currency-form-${config.currency}`}
-          name="decimalPlaces"
-          type="number"
-          min={0}
-          step={1}
-          defaultValue={config.decimalPlaces}
-          required
-          className={inputClasses}
-        />
-      </td>
-      <td className="border-b border-border py-3">
+        </div>
+        <div>
+          <label htmlFor={`decimalPlaces-${config.currency}`} className="mb-1.5 block text-xs font-medium text-fg-muted">
+            Decimales
+          </label>
+          <input
+            id={`decimalPlaces-${config.currency}`}
+            name="decimalPlaces"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={config.decimalPlaces}
+            required
+            className={inputClasses}
+          />
+        </div>
+      </div>
+
+      <div className="sm:shrink-0">
         <button
-          form={`currency-form-${config.currency}`}
           type="submit"
           disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg disabled:opacity-50"
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg disabled:opacity-50 sm:w-auto"
         >
-          {loading && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}
+          {loading && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
           Guardar
         </button>
-        {error && <p className="mt-1 text-[0.7rem] text-error">{error}</p>}
-      </td>
-    </tr>
+        {error && <p className="mt-1.5 text-xs text-error">{error}</p>}
+      </div>
+    </form>
   );
 }
