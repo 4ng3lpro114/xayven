@@ -8,10 +8,11 @@ import { z } from "zod";
  * these directly.
  */
 
-/** Same closed set used everywhere else in Pricing Core / Markets.
- *  Extending it is a deliberate, explicit widening — never a silent free
- *  string. */
-const currencySchema = z.enum(["COP", "USD"]);
+/** International Pricing — Canonical Anchor (approved 2026-08-18): widened
+ *  to include EUR (currency_config needs a rounding rule for it — see
+ *  src/lib/pricing/marketSync.ts). Still a deliberate, explicit widening —
+ *  never a silent free string. */
+const currencySchema = z.enum(["COP", "USD", "EUR"]);
 
 export const currencyConfigSchema = z.object({
   currency: currencySchema,

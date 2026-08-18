@@ -62,8 +62,12 @@ describe("POST /api/admin/markets", () => {
   });
 
   it("currency fuera del set cerrado → 400 validation_failed", async () => {
+    // EUR entró al set cerrado con International Pricing — Canonical
+    // Anchor (aprobado 2026-08-18); GBP es el ejemplo de "fuera del set"
+    // en el resto de la suite (ver displayPrice.test.ts/pricingSummary.
+    // test.ts).
     requireAdminSessionMock.mockResolvedValue(true);
-    const res = await POST(makeRequest(validBody({ currency: "EUR" })));
+    const res = await POST(makeRequest(validBody({ currency: "GBP" })));
     expect(res.status).toBe(400);
   });
 

@@ -567,7 +567,7 @@ const SEED_SERVICES: readonly Omit<Service, "id" | "createdAt" | "updatedAt">[] 
           {
             question: "¿Cuánto cuesta la automatización?",
             answer:
-              "Se cotiza según el alcance. Como funcionalidad adicional tiene un piso referencial desde $399.000 COP, pero el valor final depende de qué herramientas se conecten y qué tan compleja sea la integración.",
+              "Se cotiza según el alcance. El valor final depende de las herramientas que se conecten, la complejidad de la integración y los requerimientos específicos del proyecto.",
           },
           {
             question: "¿Necesito ya tener un sitio con XAYVEN?",
@@ -633,7 +633,7 @@ const SEED_SERVICES: readonly Omit<Service, "id" | "createdAt" | "updatedAt">[] 
           {
             question: "How much does automation cost?",
             answer:
-              "Quoted by scope. As an add-on it has a reference floor from $399,000 COP, but the final value depends on which tools get connected and how complex the integration is.",
+              "It is quoted based on scope. The final price depends on the tools being connected, the complexity of the integration, and the project's specific requirements.",
           },
           {
             question: "Do I already need a site with XAYVEN?",

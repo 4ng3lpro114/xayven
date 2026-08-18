@@ -14,10 +14,12 @@ const marketCodeSchema = z
   .max(20)
   .regex(/^[A-Z0-9_-]+$/, "El código de mercado solo puede tener mayúsculas, números, guiones y guion bajo.");
 
-/** Same closed set pricing_catalog already uses. Extending this to a new
- *  currency is a deliberate, explicit widening (same discipline as every
- *  other enum-via-CHECK in this codebase) — never a silent free string. */
-const currencySchema = z.enum(["COP", "USD"]);
+/** International Pricing — Canonical Anchor (approved 2026-08-18): widened
+ *  to include EUR for the INTERNATIONAL commercial market (EU/US sibling
+ *  markets, see src/lib/pricing/marketSync.ts). Still a deliberate,
+ *  explicit widening — never a silent free string — same discipline as
+ *  every other enum-via-CHECK in this codebase. */
+const currencySchema = z.enum(["COP", "USD", "EUR"]);
 
 const fallbackBehaviorSchema = z.enum(["QUOTE_ONLY", "BASE_REFERENCE"]);
 

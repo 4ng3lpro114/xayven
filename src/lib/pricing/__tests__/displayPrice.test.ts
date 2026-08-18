@@ -73,14 +73,16 @@ describe("toDisplayPrice — presentación, NUNCA cambia cuál es el precio ofic
   });
 
   it("cruce entre dos monedas no-COP (vía pivote COP) → funciona cuando ambas tasas existen y están vigentes", async () => {
-    // 'EUR' no es parte del set cerrado COP/USD a nivel de schema — se
-    // fuerza aquí solo para ejercitar el camino de pivote genérico
-    // (displayCurrency !== 'COP' && official.currency !== 'COP'), que el
-    // sistema de 2 monedas actual no puede disparar de otra forma.
-    const eurInput = { quoteCurrency: "EUR", rate: 0.00023, source: "display-test-pivot-eur" } as unknown as RecordExchangeRateInput;
+    // EUR está en el set cerrado a nivel de schema (International Pricing
+    // — Canonical Anchor, aprobado 2026-08-18) — este test ejercita el
+    // camino de pivote genérico (displayCurrency !== 'COP' && official.
+    // currency !== 'COP') directamente con un official USD, sin tocar
+    // ningún mercado real ni MARKET_SIBLING_GROUPS (marketSync.ts), que es
+    // el único camino que hoy sincroniza EUR↔USD sin pivotar.
+    const eurInput: RecordExchangeRateInput = { quoteCurrency: "EUR", rate: 0.00023, source: "display-test-pivot-eur" };
     await recordExchangeRate(eurInput);
     const { setCurrencyConfig } = await import("@/lib/db/currencyConfigStore");
-    const eurConfig = { currency: "EUR", roundingUnit: 1, decimalPlaces: 2 } as unknown as CurrencyConfigInput;
+    const eurConfig: CurrencyConfigInput = { currency: "EUR", roundingUnit: 1, decimalPlaces: 2 };
     await setCurrencyConfig(eurConfig);
 
     const off = official({ currency: "USD", amount: 399 });

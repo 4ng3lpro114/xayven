@@ -132,6 +132,7 @@ export function MarketForm({
           <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={adminInputClasses}>
             <option value="COP">COP</option>
             <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
           </select>
         </AdminField>
       </AdminFormSection>
