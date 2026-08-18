@@ -3,6 +3,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
@@ -138,43 +139,25 @@ export function MaintenanceForm({ form }: { form: Dictionary["maintenance"]["for
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label={form.needLabel} htmlFor={`${formId}-need`} error={errors.need}>
-          <select
+          <CustomSelect
             id={`${formId}-need`}
             name="need"
             required
-            defaultValue=""
-            className={cn(inputClasses, "appearance-none")}
+            options={form.needOptions}
+            placeholder="—"
             aria-invalid={Boolean(errors.need)}
-          >
-            <option value="" disabled>
-              —
-            </option>
-            {form.needOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label={form.priorityLabel} htmlFor={`${formId}-priority`} error={errors.priority}>
-          <select
+          <CustomSelect
             id={`${formId}-priority`}
             name="priority"
             required
-            defaultValue=""
-            className={cn(inputClasses, "appearance-none")}
+            options={form.priorityOptions}
+            placeholder="—"
             aria-invalid={Boolean(errors.priority)}
-          >
-            <option value="" disabled>
-              —
-            </option>
-            {form.priorityOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
       </div>
 

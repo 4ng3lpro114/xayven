@@ -3,6 +3,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { cn } from "@/lib/utils";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
@@ -186,43 +187,25 @@ export function ContactForm({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label={form.projectType} htmlFor={`${formId}-projectType`} error={errors.projectType}>
-          <select
+          <CustomSelect
             id={`${formId}-projectType`}
             name="projectType"
             required
-            defaultValue=""
-            className={cn(inputClasses, "appearance-none")}
+            options={form.projectTypeOptions}
+            placeholder="—"
             aria-invalid={Boolean(errors.projectType)}
-          >
-            <option value="" disabled>
-              —
-            </option>
-            {form.projectTypeOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label={form.budget} htmlFor={`${formId}-budget`} error={errors.budget}>
-          <select
+          <CustomSelect
             id={`${formId}-budget`}
             name="budget"
             required
-            defaultValue=""
-            className={cn(inputClasses, "appearance-none")}
+            options={form.budgetOptions}
+            placeholder="—"
             aria-invalid={Boolean(errors.budget)}
-          >
-            <option value="" disabled>
-              —
-            </option>
-            {form.budgetOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
       </div>
 
