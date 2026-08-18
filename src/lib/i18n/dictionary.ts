@@ -216,9 +216,22 @@ export interface Dictionary {
 
   /** International Pricing Phase D — Display Currency. Generic UI copy
    *  for the display-currency selector shown next to public prices
-   *  (Services/Maintenance) — never per-page content. */
+   *  (Services/Maintenance) — never per-page content.
+   *
+   *  Commercial Market Selector (approved 2026-08-18) adds the market-
+   *  side counterpart: `marketNames` is keyed by `pricing_markets.code`
+   *  (CO/US/EU/OTHER today) — never the reverse (a market's `name` column
+   *  is an admin-facing English string, not localized; the source of
+   *  TRUTH for which markets exist still comes from listPricingMarkets(),
+   *  this dictionary only supplies the label). A market code with no
+   *  entry here is never an error — CommercialMarketSelector falls back
+   *  to the raw code, never hides the market or crashes. */
   pricing: {
     displayCurrencyLabel: string;
+    marketLabel: string;
+    marketExplanation: string;
+    marketAutomaticLabel: string;
+    marketNames: Record<string, string>;
   };
 
   ai: {
