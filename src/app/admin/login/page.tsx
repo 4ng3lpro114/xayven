@@ -46,12 +46,14 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-5">
-      <div className="w-full max-w-sm rounded-xl border border-border-strong bg-bg-raised p-8 shadow-elevated">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-5">
+      <div className="field-glow" />
+      <div className="grid-overlay" />
+      <div className="relative z-10 w-full max-w-sm rounded-xl border border-border-strong bg-bg-raised p-8 shadow-elevated">
         <div className="flex items-center gap-2.5">
           <Logo />
         </div>
-        <p className="mt-1 font-mono text-xs uppercase tracking-[0.12em] text-fg-subtle">Admin</p>
+        <p className="mt-1 font-mono text-xs uppercase tracking-[0.12em] text-fg-subtle">XAYVEN Admin</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>

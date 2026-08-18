@@ -18,6 +18,7 @@ export type StatisticsTab =
   | "velocidad"
   | "ia"
   | "mantenimiento"
+  | "comercial"
   | "fuentes";
 
 export const STATISTICS_TABS: { key: StatisticsTab; label: string }[] = [
@@ -30,6 +31,10 @@ export const STATISTICS_TABS: { key: StatisticsTab; label: string }[] = [
   { key: "velocidad", label: "Velocidad de conversión" },
   { key: "ia", label: "IA & Conversaciones" },
   { key: "mantenimiento", label: "Mantenimiento" },
+  // Analytics Phase 7 — funnel comercial de Services/Pricing/Maintenance
+  // (analytics_events), independiente de "Fuentes" (que sigue siendo
+  // exclusivamente UTM/referrer/país/promociones, sin cambios).
+  { key: "comercial", label: "Funnel Comercial" },
   { key: "fuentes", label: "Fuentes & Promociones" },
 ];
 

@@ -9,6 +9,9 @@ import { CopyLinkButton } from "@/components/admin/CopyLinkButton";
 import { NewMaintenanceChargeForm } from "@/components/admin/NewMaintenanceChargeForm";
 import { ConfirmWiseButtons } from "@/components/admin/ConfirmWiseButtons";
 import { ProjectActions } from "@/components/admin/ProjectActions";
+import { ProjectStatusBadge } from "@/components/admin/ProjectStatusBadge";
+import { AdminSection } from "@/components/admin/ui/AdminSection";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
 import { getProjectProtection } from "@/lib/projects/protection";
 import { SITE_URL } from "@/lib/constants";
 
@@ -56,11 +59,14 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
         Volver
       </Link>
 
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-fg">{project.name}</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            {client?.name} · {client?.email} · Estado: {project.status}
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-fg">{project.name}</h1>
+            <ProjectStatusBadge status={project.status} />
+          </div>
+          <p className="mt-1.5 text-sm text-fg-muted">
+            {client?.name} · {client?.email}
           </p>
         </div>
         <div className="flex flex-col items-end gap-3">
@@ -96,56 +102,57 @@ export default async function AdminProjectDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <h2 className="mt-10 text-base font-semibold text-fg">Cobrar mantenimiento</h2>
-      <p className="mt-1 text-sm text-fg-muted">
-        Crea un cobro puntual — no afecta el total/pagado del proyecto. Comparte el enlace de
-        pago con el cliente (o dile que ya aparece en su área de proyecto).
-      </p>
-      <div className="mt-4">
+      <AdminSection
+        title="Cobrar mantenimiento"
+        description="Crea un cobro puntual — no afecta el total/pagado del proyecto. Comparte el enlace de pago con el cliente (o dile que ya aparece en su área de proyecto)."
+      >
         <NewMaintenanceChargeForm projectId={project.id} />
-      </div>
+      </AdminSection>
 
-      <h2 className="mt-10 text-base font-semibold text-fg">Pagos</h2>
-      <div className="mt-4 overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Proveedor</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 font-medium">Monto</th>
-              <th className="px-4 py-3 font-medium">Referencia</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {payments.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-fg-subtle">
-                  Todavía no hay pagos.
-                </td>
-              </tr>
-            )}
-            {payments.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-3 text-fg-subtle">
-                  {new Date(p.createdAt).toLocaleDateString("es-CO")}
-                </td>
-                <td className="px-4 py-3 text-fg-muted">{p.provider}</td>
-                <td className="px-4 py-3 text-fg-muted">{p.paymentType}</td>
-                <td className="px-4 py-3 text-fg">{formatMoney(p.amount, p.currency)}</td>
-                <td className="px-4 py-3 font-mono text-xs text-fg-subtle">{p.reference}</td>
-                <td className="px-4 py-3">
-                  <PaymentStatusBadge status={p.status} label={STATUS_LABELS_ES[p.status]} />
-                </td>
-                <td className="px-4 py-3">
-                  {pendingWise.some((w) => w.id === p.id) && <ConfirmWiseButtons paymentId={p.id} />}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-8">
+        <AdminSection title="Pagos">
+          <div className="-m-6 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
+                  <th className="px-6 py-3 font-medium">Fecha</th>
+                  <th className="px-6 py-3 font-medium">Proveedor</th>
+                  <th className="px-6 py-3 font-medium">Tipo</th>
+                  <th className="px-6 py-3 font-medium">Monto</th>
+                  <th className="px-6 py-3 font-medium">Referencia</th>
+                  <th className="px-6 py-3 font-medium">Estado</th>
+                  <th className="px-6 py-3 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {payments.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10">
+                      <AdminEmptyState title="Todavía no hay pagos." />
+                    </td>
+                  </tr>
+                )}
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-b border-border last:border-0">
+                    <td className="px-6 py-3 text-fg-subtle">
+                      {new Date(p.createdAt).toLocaleDateString("es-CO")}
+                    </td>
+                    <td className="px-6 py-3 text-fg-muted">{p.provider}</td>
+                    <td className="px-6 py-3 text-fg-muted">{p.paymentType}</td>
+                    <td className="px-6 py-3 text-fg">{formatMoney(p.amount, p.currency)}</td>
+                    <td className="px-6 py-3 font-mono text-xs text-fg-subtle">{p.reference}</td>
+                    <td className="px-6 py-3">
+                      <PaymentStatusBadge status={p.status} label={STATUS_LABELS_ES[p.status]} />
+                    </td>
+                    <td className="px-6 py-3">
+                      {pendingWise.some((w) => w.id === p.id) && <ConfirmWiseButtons paymentId={p.id} />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AdminSection>
       </div>
     </div>
   );

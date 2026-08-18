@@ -53,20 +53,47 @@ export interface Dictionary {
     heading: string;
     description: string;
     ctaLabel: string;
-    fieldLabels: { who: string; problem: string; outcome: string };
-    items: {
-      title: string;
-      summary: string;
-      who: string;
-      problem: string;
-      outcome: string;
-    }[];
+    /** Services Phase 2 — generic UI copy for the /services index, not
+     *  editorial content (that lives per-service in servicesStore.ts). */
+    viewService: string;
+    priceFrom: string;
+    priceQuote: string;
+    aiHelp: {
+      heading: string;
+      description: string;
+      cta: string;
+    };
   };
   why: {
     eyebrow: string;
     heading: string;
     description: string;
     items: { title: string; description: string }[];
+  };
+  /** Services Phase 3 — /services/[slug] generic UI copy. Editorial
+   *  content per service lives in servicesStore.ts, not here. */
+  serviceDetail: {
+    definitionHeading: string;
+    problemHeading: string;
+    solutionHeading: string;
+    includesHeading: string;
+    forWhomHeading: string;
+    idealIfLabel: string;
+    notIdealIfLabel: string;
+    useCasesHeading: string;
+    workLinkLabel: string;
+    pricingHeading: string;
+    priceQuoteExplanation: string;
+    processHeading: string;
+    processDescription: string;
+    processLinkLabel: string;
+    faqHeading: string;
+    faqDescription: string;
+    relatedHeading: string;
+    choosePackageLabel: string;
+    exploreMoreHeading: string;
+    maintenanceLinkLabel: string;
+    diagnosisLinkLabel: string;
   };
   work: {
     eyebrow: string;
@@ -157,6 +184,8 @@ export interface Dictionary {
       requiredError: string;
       emailError: string;
       minLengthError: string;
+      selectedPlanLabel: string;
+      changePlanLabel: string;
     };
   };
   footer: {
@@ -184,6 +213,13 @@ export interface Dictionary {
     privacy: { title: string; description: string };
   };
   skipToContent: string;
+
+  /** International Pricing Phase D — Display Currency. Generic UI copy
+   *  for the display-currency selector shown next to public prices
+   *  (Services/Maintenance) — never per-page content. */
+  pricing: {
+    displayCurrencyLabel: string;
+  };
 
   ai: {
     name: string;
@@ -214,14 +250,50 @@ export interface Dictionary {
     eyebrow: string;
     heading: string;
     description: string;
+    /** Maintenance Phase 4 — `slug` references pricing_catalog (real
+     *  price resolved in the page, never stored here). Editorial content
+     *  (name/tagline/who/features) still lives in the dictionary — Essential/
+     *  Growth/Care+ are only 3 fixed plans, not a whole new domain model
+     *  like Services got. */
+    /** Pre-Production Correction R1 — `features` removed from here.
+     *  Single source of truth is now pricing_catalog.features_es/
+     *  features_en (see PricingCatalogItem.features in pricing/types.ts) —
+     *  editorial fields (tagline/who) stay here, commercial ones don't. */
     plans: {
+      slug: string;
       name: string;
       tagline: string;
       who: string;
-      features: string[];
-      priceLabel: string;
     }[];
+    perMonthSuffix: string;
+    /** Fallback only — shown if a plan's slug somehow doesn't resolve to
+     *  an active Pricing Core item. Never the normal path. */
+    priceUnavailable: string;
     ctaLabel: string;
+    about: {
+      whatHeading: string;
+      whatBody: string;
+      whyHeading: string;
+      whyBody: string;
+      problemsHeading: string;
+      problems: string[];
+    };
+    comparisonHeading: string;
+    comparisonNote: string;
+    comparisonPriceRow: string;
+    comparisonWhoRow: string;
+    comparisonIncludesRow: string;
+    faq: {
+      eyebrow: string;
+      heading: string;
+      description: string;
+      items: { question: string; answer: string }[];
+    };
+    aiHelp: {
+      heading: string;
+      description: string;
+      cta: string;
+    };
     form: {
       heading: string;
       description: string;

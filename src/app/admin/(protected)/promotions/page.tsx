@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { listPromotions } from "@/lib/db/promotionStore";
 import { getEffectivePromotionStatus } from "@/lib/promotions/effectiveStatus";
 import { formatPromotionDiscount } from "@/lib/promotions/format";
 import { PromotionStatusBadge } from "@/components/admin/PromotionStatusBadge";
 import { PromotionActionButton } from "@/components/admin/PromotionActions";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminEntityCard } from "@/components/admin/ui/AdminEntityCard";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { PromotionEffectiveStatus } from "@/lib/promotions/types";
 
@@ -58,19 +62,17 @@ export default async function AdminPromotionsPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-fg">Promociones</h1>
-          <p className="mt-1 text-sm text-fg-muted">Administra las campañas promocionales de XAYVEN.</p>
-        </div>
-        <Link
-          href="/admin/promotions/new"
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-400"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Nueva promoción
-        </Link>
-      </div>
+      <AdminPageHeader
+        eyebrow="Comercial"
+        title="Promociones"
+        description="Administra las campañas promocionales de XAYVEN."
+        action={
+          <Button href="/admin/promotions/new" variant="secondary" size="md">
+            <Plus className="size-4" aria-hidden="true" />
+            Nueva promoción
+          </Button>
+        }
+      />
 
       <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -91,55 +93,49 @@ export default async function AdminPromotionsPage({ searchParams }: PageProps) {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.length === 0 && (
-          <p className="col-span-full py-10 text-center text-sm text-fg-subtle">
-            No hay promociones en esta categoría todavía.
-          </p>
+          <AdminEmptyState icon={Tag} title="No hay promociones en esta categoría todavía." />
         )}
         {filtered.map(({ promotion, effectiveStatus }) => (
-          <div key={promotion.id} className="rounded-lg border border-border bg-bg-raised p-5">
-            <div className="flex items-start justify-between gap-2">
-              <Link
-                href={`/admin/promotions/${promotion.id}`}
-                className="text-sm font-semibold text-fg hover:text-accent-300"
-              >
-                {promotion.name}
-              </Link>
-              <PromotionStatusBadge status={effectiveStatus} />
-            </div>
-
-            <p className="mt-2 line-clamp-2 text-sm text-fg-muted">{promotion.text}</p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
-              <span className="font-mono text-accent-300">{formatPromotionDiscount(promotion)}</span>
-              <span>·</span>
-              <span>
+          <AdminEntityCard
+            key={promotion.id}
+            href={`/admin/promotions/${promotion.id}`}
+            title={promotion.name}
+            badge={<PromotionStatusBadge status={effectiveStatus} />}
+            meta={
+              <>
                 {DATE_FORMAT.format(new Date(promotion.startAt))} – {DATE_FORMAT.format(new Date(promotion.endAt))}
-              </span>
-            </div>
-
-            <p className="mt-2 text-xs text-fg-subtle">CTA: {promotion.ctaLabel}</p>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link
-                href={`/admin/promotions/${promotion.id}`}
-                className="inline-flex items-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg"
-              >
-                Editar
-              </Link>
-              {promotion.status === "draft" && (
-                <PromotionActionButton promotionId={promotion.id} action="schedule" />
-              )}
-              {promotion.status === "scheduled" && (
-                <PromotionActionButton promotionId={promotion.id} action="pause" />
-              )}
-              {promotion.status === "paused" && (
-                <PromotionActionButton promotionId={promotion.id} action="resume" />
-              )}
-              {promotion.status !== "archived" && (
-                <PromotionActionButton promotionId={promotion.id} action="archive" variant="danger" />
-              )}
-            </div>
-          </div>
+              </>
+            }
+            highlight={formatPromotionDiscount(promotion)}
+            description={
+              <>
+                <span className="line-clamp-2">{promotion.text}</span>
+                <span className="mt-2 block text-xs text-fg-subtle">CTA: {promotion.ctaLabel}</span>
+              </>
+            }
+            footer={
+              <>
+                <Link
+                  href={`/admin/promotions/${promotion.id}`}
+                  className="inline-flex items-center rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:border-border-accent hover:text-fg"
+                >
+                  Editar
+                </Link>
+                {promotion.status === "draft" && (
+                  <PromotionActionButton promotionId={promotion.id} action="schedule" />
+                )}
+                {promotion.status === "scheduled" && (
+                  <PromotionActionButton promotionId={promotion.id} action="pause" />
+                )}
+                {promotion.status === "paused" && (
+                  <PromotionActionButton promotionId={promotion.id} action="resume" />
+                )}
+                {promotion.status !== "archived" && (
+                  <PromotionActionButton promotionId={promotion.id} action="archive" variant="danger" />
+                )}
+              </>
+            }
+          />
         ))}
       </div>
     </div>

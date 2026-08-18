@@ -4,9 +4,9 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AdminFormSection, AdminField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 
-const inputClasses =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-subtle focus:border-accent-400 focus:outline-none";
+const inputClasses = adminInputClasses;
 
 export interface PreselectedClient {
   id: string;
@@ -79,58 +79,61 @@ export function NewProjectForm({
 
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-5">
-      {preselectedClient ? (
-        <div className="rounded-lg border border-border-accent bg-bg-raised p-4">
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
-            Proyecto para
-          </p>
-          <p className="mt-1 text-sm font-medium text-fg">{preselectedClient.name}</p>
-          {preselectedClient.company && (
-            <p className="text-sm text-fg-muted">{preselectedClient.company}</p>
-          )}
-          <p className="text-sm text-fg-muted">{preselectedClient.email}</p>
-        </div>
-      ) : (
+      <AdminFormSection title="Cliente">
+        {preselectedClient ? (
+          <div className="rounded-lg border border-border-accent bg-bg-raised p-4">
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
+              Proyecto para
+            </p>
+            <p className="mt-1 text-sm font-medium text-fg">{preselectedClient.name}</p>
+            {preselectedClient.company && (
+              <p className="text-sm text-fg-muted">{preselectedClient.company}</p>
+            )}
+            <p className="text-sm text-fg-muted">{preselectedClient.email}</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <AdminField label="Nombre del cliente" htmlFor="clientName">
+                <input id="clientName" name="clientName" type="text" required className={inputClasses} />
+              </AdminField>
+              <AdminField label="Email del cliente" htmlFor="clientEmail">
+                <input id="clientEmail" name="clientEmail" type="email" required className={inputClasses} />
+              </AdminField>
+            </div>
+            <AdminField label="Teléfono / WhatsApp (opcional)" htmlFor="clientPhone">
+              <input id="clientPhone" name="clientPhone" type="text" className={inputClasses} />
+            </AdminField>
+          </>
+        )}
+      </AdminFormSection>
+
+      <AdminFormSection title="Proyecto">
+        <AdminField label="Nombre del proyecto" htmlFor="projectName">
+          <input id="projectName" name="projectName" type="text" required className={inputClasses} />
+        </AdminField>
+
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Nombre del cliente" htmlFor="clientName">
-            <input id="clientName" name="clientName" type="text" required className={inputClasses} />
-          </Field>
-          <Field label="Email del cliente" htmlFor="clientEmail">
-            <input id="clientEmail" name="clientEmail" type="email" required className={inputClasses} />
-          </Field>
+          <AdminField label="Precio total" htmlFor="totalAmount">
+            <input
+              id="totalAmount"
+              name="totalAmount"
+              type="number"
+              min={1}
+              step={1}
+              required
+              placeholder="3000000"
+              className={inputClasses}
+            />
+          </AdminField>
+          <AdminField label="Moneda" htmlFor="currency">
+            <select id="currency" name="currency" defaultValue="COP" className={inputClasses}>
+              <option value="COP">COP</option>
+              <option value="USD">USD</option>
+            </select>
+          </AdminField>
         </div>
-      )}
-
-      {!preselectedClient && (
-        <Field label="Teléfono / WhatsApp (opcional)" htmlFor="clientPhone">
-          <input id="clientPhone" name="clientPhone" type="text" className={inputClasses} />
-        </Field>
-      )}
-
-      <Field label="Nombre del proyecto" htmlFor="projectName">
-        <input id="projectName" name="projectName" type="text" required className={inputClasses} />
-      </Field>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Precio total" htmlFor="totalAmount">
-          <input
-            id="totalAmount"
-            name="totalAmount"
-            type="number"
-            min={1}
-            step={1}
-            required
-            placeholder="3000000"
-            className={inputClasses}
-          />
-        </Field>
-        <Field label="Moneda" htmlFor="currency">
-          <select id="currency" name="currency" defaultValue="COP" className={inputClasses}>
-            <option value="COP">COP</option>
-            <option value="USD">USD</option>
-          </select>
-        </Field>
-      </div>
+      </AdminFormSection>
 
       {error && <p className="text-sm text-error">{error}</p>}
 
@@ -138,24 +141,5 @@ export function NewProjectForm({
         {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : "Crear proyecto"}
       </Button>
     </form>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="mb-2 block text-sm font-medium text-fg">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

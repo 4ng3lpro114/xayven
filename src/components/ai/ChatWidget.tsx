@@ -10,6 +10,7 @@ import {
   getOrCreateSessionId,
   consumeDiagnosisContext,
   consumePromotionContext,
+  consumeServiceContext,
   OPEN_CHAT_EVENT,
 } from "@/lib/ai/clientSession";
 import { cn } from "@/lib/utils";
@@ -71,15 +72,26 @@ export function ChatWidget({
     if (!open) return;
     if (!diagnosisHandled.current) {
       diagnosisHandled.current = true;
-      // Fase 11 Etapa A: checked first — in practice a visitor only ever
-      // triggers one handoff (promotion CTA OR the diagnosis tool) before
-      // opening the chat, never both, but the two live in separate
-      // sessionStorage keys (see clientSession.ts) so checking one never
-      // has to know about the other's shape.
+      // Checked in order — in practice a visitor only ever triggers ONE
+      // handoff (promotion CTA, diagnosis tool, OR a service detail
+      // page's AI CTA) before opening the chat, never more than one, but
+      // all three live in separate sessionStorage keys (see
+      // clientSession.ts) so checking one never has to know about
+      // another's shape.
       const promotionContext = consumePromotionContext();
       if (promotionContext) {
         window.setTimeout(
-          () => void sendMessage(promotionContext.message, promotionContext.promotionId),
+          () => void sendMessage(promotionContext.message, { promotionId: promotionContext.promotionId }),
+          400
+        );
+        return;
+      }
+      // Services Phase 3 — same handoff mechanism as promotion/diagnosis
+      // above, see ServiceAiCtaButton.tsx / setServiceContext().
+      const serviceContext = consumeServiceContext();
+      if (serviceContext) {
+        window.setTimeout(
+          () => void sendMessage(serviceContext.message, { serviceSlug: serviceContext.slug }),
           400
         );
         return;
@@ -98,7 +110,10 @@ export function ChatWidget({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
-  async function sendMessage(text: string, promotionId?: string) {
+  async function sendMessage(
+    text: string,
+    attribution?: { promotionId?: string; serviceSlug?: string }
+  ) {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
@@ -116,11 +131,12 @@ export function ChatWidget({
           message: trimmed,
           locale,
           // Only ever present on the one auto-sent turn right after
-          // opening via a promotion's CTA — every regular typed message
-          // (including the rest of this same conversation) omits it
-          // entirely, since attribution only needs to happen once (see
-          // /api/ai/chat/route.ts's "first-touch, sticky" comment).
-          ...(promotionId ? { promotionId } : {}),
+          // opening via a promotion's/service's CTA — every regular typed
+          // message (including the rest of this same conversation) omits
+          // both entirely, since attribution only needs to happen once
+          // (see /api/ai/chat/route.ts's "first-touch, sticky" comment).
+          ...(attribution?.promotionId ? { promotionId: attribution.promotionId } : {}),
+          ...(attribution?.serviceSlug ? { serviceSlug: attribution.serviceSlug } : {}),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {

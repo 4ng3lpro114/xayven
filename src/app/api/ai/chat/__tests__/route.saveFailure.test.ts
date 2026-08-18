@@ -31,6 +31,28 @@ vi.mock("@/lib/db/conversationStore", async (importOriginal) => {
   };
 });
 
+// International Pricing Phase E — same reasoning as route.test.ts: mocks
+// the cookies()-touching module, not next/headers itself, matching the
+// established /api/admin/** convention (mock requireAdminSession()).
+vi.mock("@/lib/pricing/commercialContext", () => ({
+  resolveCommercialMarket: () =>
+    Promise.resolve({
+      market: {
+        id: "hardcoded-fallback-market",
+        createdAt: "1970-01-01T00:00:00.000Z",
+        updatedAt: "1970-01-01T00:00:00.000Z",
+        code: "OTHER",
+        name: "Other markets (unassigned)",
+        currency: "COP",
+        conversionAllowed: false,
+        fallbackBehavior: "BASE_REFERENCE",
+        isActive: true,
+      },
+      source: "default",
+    }),
+  resolveDisplayCurrency: () => Promise.resolve({ currency: "COP", source: "market_default" }),
+}));
+
 import { POST } from "../route";
 
 function makeRequest(body: unknown): NextRequest {

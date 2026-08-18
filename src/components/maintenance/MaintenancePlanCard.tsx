@@ -1,8 +1,15 @@
+"use client";
+
+import { useEffect } from "react";
 import { Check } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics/track";
 
 interface MaintenancePlanCardProps {
+  /** Pricing Core slug (essential/growth/care-plus) — used only for
+   *  analytics attribution (Analytics Phase 7), never rendered. */
+  slug: string;
   name: string;
   tagline: string;
   who: string;
@@ -13,7 +20,15 @@ interface MaintenancePlanCardProps {
   delay?: number;
 }
 
+/**
+ * Analytics Phase 7: this card is now a client component (previously a
+ * plain server-rendered one) purely to fire `maintenance_plan_view` on
+ * mount and `maintenance_cta` on the request-form link click — same
+ * `trackEvent()` primitive every other tracked component in this arc
+ * uses, no new mechanism.
+ */
 export function MaintenancePlanCard({
+  slug,
   name,
   tagline,
   who,
@@ -23,6 +38,11 @@ export function MaintenancePlanCard({
   featured = false,
   delay = 0,
 }: MaintenancePlanCardProps) {
+  useEffect(() => {
+    trackEvent("maintenance_plan_view", { packageSlug: slug });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Reveal delay={delay} className="h-full">
       <article
@@ -48,6 +68,7 @@ export function MaintenancePlanCard({
           <span className="text-sm font-medium text-fg">{priceLabel}</span>
           <a
             href="#maintenance-request"
+            onClick={() => trackEvent("maintenance_cta", { packageSlug: slug })}
             className="text-sm font-medium text-accent-300 transition-colors hover:text-accent-200"
           >
             {ctaLabel}

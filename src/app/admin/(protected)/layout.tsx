@@ -6,7 +6,17 @@ import { Logo } from "@/components/ui/Logo";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/admin";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
+import { AdminSidebar } from "@/components/admin/ui/AdminSidebar";
+import { AdminMobileNav } from "@/components/admin/ui/AdminMobileNav";
 
+/**
+ * Admin UI Polish (Fase 13/15) — sidebar + mobile overlay replacing the
+ * single-row top nav (10 flat links, `hidden sm:flex` with zero mobile
+ * fallback). Auth check and the `newContactRequestsCount` fetch are
+ * untouched — same cookie, same verifySessionToken(), same bulk-fetch
+ * count. Every route this admin has ever linked to is still linked from
+ * exactly the same href, only the visual organization changed.
+ */
 export default async function ProtectedAdminLayout({
   children,
 }: {
@@ -27,46 +37,14 @@ export default async function ProtectedAdminLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-          <div className="flex items-center gap-8">
+      <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur">
+        <div className="flex h-16 items-center justify-between px-5">
+          <div className="flex items-center gap-3">
+            <AdminMobileNav newContactRequestsCount={newContactRequestsCount} />
             <Link href="/admin" className="flex items-center gap-2">
               <Logo />
-              <span className="font-mono text-xs uppercase tracking-[0.12em] text-fg-subtle">
-                Admin
-              </span>
+              <span className="font-mono text-xs uppercase tracking-[0.12em] text-fg-subtle">Admin</span>
             </Link>
-            <nav className="hidden items-center gap-5 text-sm text-fg-muted sm:flex">
-              <Link href="/admin" className="transition-colors hover:text-fg">
-                Conversaciones
-              </Link>
-              <Link href="/admin/clients" className="transition-colors hover:text-fg">
-                Clientes
-              </Link>
-              <Link href="/admin/projects" className="transition-colors hover:text-fg">
-                Proyectos
-              </Link>
-              <Link href="/admin/payments" className="transition-colors hover:text-fg">
-                Pagos
-              </Link>
-              <Link href="/admin/statistics" className="transition-colors hover:text-fg">
-                Estadísticas
-              </Link>
-              <Link href="/admin/promotions" className="transition-colors hover:text-fg">
-                Promociones
-              </Link>
-              <Link
-                href="/admin/contact-requests"
-                className="inline-flex items-center gap-1.5 transition-colors hover:text-fg"
-              >
-                Solicitudes
-                {newContactRequestsCount > 0 && (
-                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-pill bg-accent-500 px-1.5 py-0.5 text-[0.65rem] font-semibold text-white">
-                    {newContactRequestsCount}
-                  </span>
-                )}
-              </Link>
-            </nav>
           </div>
           <LogoutButton>
             <LogOut className="size-4" aria-hidden="true" />
@@ -74,7 +52,13 @@ export default async function ProtectedAdminLayout({
           </LogoutButton>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-10">{children}</main>
+
+      <div className="mx-auto flex max-w-[100rem] items-start gap-8 px-5 py-8">
+        <aside className="sticky top-24 hidden w-56 shrink-0 lg:block">
+          <AdminSidebar newContactRequestsCount={newContactRequestsCount} />
+        </aside>
+        <main className="min-w-0 flex-1 pb-16">{children}</main>
+      </div>
     </div>
   );
 }

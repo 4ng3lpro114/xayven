@@ -39,5 +39,9 @@ export async function generateSummary(conversation: Conversation): Promise<strin
     { temperature: 0.2, maxTokens: 200 }
   );
 
-  return result.ok ? result.content.trim() : null;
+  // No tools are ever passed here, so a real toolCalls response is not a
+  // case this call site can produce — but the type is shared with the
+  // tool-calling path (see provider.ts), so content is still `string |
+  // null` at the type level.
+  return result.ok && result.content ? result.content.trim() : null;
 }

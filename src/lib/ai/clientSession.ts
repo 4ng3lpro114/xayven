@@ -100,6 +100,48 @@ export function consumePromotionContext(): PromotionContext | null {
   }
 }
 
+const SERVICE_CONTEXT_KEY = "xayven_service_context";
+
+export interface ServiceContext {
+  /** The service's slug (/services/[slug]) — for server-side attribution
+   *  (see chatTurnSchema.serviceSlug and /api/ai/chat/route.ts), never
+   *  shown to the visitor directly. */
+  slug: string;
+  /** The first message ChatWidget auto-sends on the visitor's behalf —
+   *  same role setDiagnosisContext()'s text and PromotionContext.message
+   *  play above, sourced from the service detail page's own AI CTA (see
+   *  ServiceAiCtaButton.tsx). */
+  message: string;
+}
+
+/** Same one-shot sessionStorage handoff as setDiagnosisContext()/
+ *  setPromotionContext() above — a THIRD independent key, not reusing
+ *  either (each context carries a different shape and a different
+ *  meaning). Never more than one of the three is ever set in practice
+ *  (only one CTA is clicked before opening the chat), but kept
+ *  independent regardless so none can accidentally clobber another. */
+export function setServiceContext(context: ServiceContext) {
+  try {
+    window.sessionStorage.setItem(SERVICE_CONTEXT_KEY, JSON.stringify(context));
+  } catch {
+    // Ignore — same "nice-to-have, not critical" reasoning as the other
+    // two context setters above.
+  }
+}
+
+export function consumeServiceContext(): ServiceContext | null {
+  try {
+    const raw = window.sessionStorage.getItem(SERVICE_CONTEXT_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(SERVICE_CONTEXT_KEY);
+    const parsed = JSON.parse(raw) as Partial<ServiceContext>;
+    if (typeof parsed.slug !== "string" || typeof parsed.message !== "string") return null;
+    return { slug: parsed.slug, message: parsed.message };
+  } catch {
+    return null;
+  }
+}
+
 export const OPEN_CHAT_EVENT = "xayven:open-chat";
 
 /** Lets any component (e.g. the diagnosis tool) open the chat widget

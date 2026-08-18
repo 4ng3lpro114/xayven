@@ -65,45 +65,20 @@ export const es: Dictionary = {
     description:
       "No vendemos horas de código. Vendemos estrategia, diseño y desarrollo trabajando juntos para conseguirte resultados.",
     ctaLabel: "Ver todos los servicios",
-    fieldLabels: { who: "Para quién", problem: "Problema", outcome: "Resultado" },
-    items: [
-      {
-        title: "Diseño y desarrollo web",
-        summary:
-          "Sitios web profesionales, diseñados y construidos desde cero para tu marca.",
-        who: "Negocios que necesitan una web nueva o una renovación completa.",
-        problem: "Una web que no representa la calidad real de tu negocio — o no tener una.",
-        outcome: "Un sitio rápido, claro y que genera confianza desde el primer clic.",
-      },
-      {
-        title: "Tiendas online",
-        summary: "Ecommerce con catálogo, pedidos y una experiencia de compra simple.",
-        who: "Negocios que venden productos y quieren vender también por internet.",
-        problem: "No tener un canal de ventas digital, o tener uno que no convierte.",
-        outcome: "Una tienda fácil de usar, con catálogo, checkout y gestión simple.",
-      },
-      {
-        title: "Landing pages y campañas",
-        summary: "Páginas enfocadas en un solo objetivo, listas en días.",
-        who: "Negocios lanzando un producto, promoción o servicio específico.",
-        problem: "Necesitas una página rápida de lanzar, sin construir un sitio completo.",
-        outcome: "Una landing optimizada para conversión, lista para tu próxima campaña.",
-      },
-      {
-        title: "Identidad digital y SEO",
-        summary: "Branding digital y las bases técnicas para que te encuentren en Google.",
-        who: "Marcas que están empezando o necesitan coherencia visual y visibilidad.",
-        problem: "No tener una identidad clara, o ser prácticamente invisible en buscadores.",
-        outcome: "Una marca digital coherente, con SEO técnico bien hecho desde el inicio.",
-      },
-      {
-        title: "Mantenimiento y optimización",
-        summary: "Soporte continuo para que tu sitio siga funcionando y mejorando.",
-        who: "Negocios que ya tienen web y necesitan que se mantenga al día.",
-        problem: "Sitios abandonados, lentos o con contenido desactualizado.",
-        outcome: "Un sitio que se mantiene rápido, seguro y actualizado con el tiempo.",
-      },
-    ],
+    // Services Phase 10 (QA/dead-code cleanup) — `items`/`fieldLabels`
+    // (el contenido legacy de 5 servicios distintos a los reales)
+    // eliminados: desde Services Phase 6, XAYVEN AI también lee
+    // servicesStore.ts — quedaron sin ningún consumidor real, confirmado
+    // por grep exhaustivo antes de borrarlos. El contenido real de cada
+    // servicio vive en servicesStore.ts.
+    viewService: "Ver servicio",
+    priceFrom: "Desde",
+    priceQuote: "Cotización personalizada",
+    aiHelp: {
+      heading: "¿No sabes qué servicio necesitas?",
+      description: "Cuéntale a XAYVEN AI tu situación y te ayuda a identificar el servicio correcto.",
+      cta: "Habla con XAYVEN AI",
+    },
   },
   why: {
     eyebrow: "Por qué XAYVEN",
@@ -136,6 +111,36 @@ export const es: Dictionary = {
         description: "Hablas con quien construye tu proyecto, no con un intermediario comercial.",
       },
     ],
+  },
+  // Services Phase 3 — /services/[slug]. Generic UI copy/section labels
+  // shared across every service detail page; the actual editorial
+  // content (heading, definition, problem, solution, includes, forWhom,
+  // useCases, faq) lives per-service in servicesStore.ts, never here.
+  serviceDetail: {
+    definitionHeading: "¿Qué es?",
+    problemHeading: "El problema",
+    solutionHeading: "La solución XAYVEN",
+    includesHeading: "Qué incluye",
+    forWhomHeading: "Para quién es",
+    idealIfLabel: "Ideal si...",
+    notIdealIfLabel: "Puede no ser la solución si...",
+    useCasesHeading: "Casos de uso",
+    workLinkLabel: "Ver proyectos reales",
+    pricingHeading: "Precios",
+    priceQuoteExplanation: "Este servicio no tiene un paquete cerrado — se cotiza según el alcance real de tu proyecto.",
+    processHeading: "Cómo trabajamos",
+    processDescription: "Mismo proceso para todos los servicios de XAYVEN — diseño, desarrollo y estrategia bajo un mismo equipo.",
+    processLinkLabel: "Ver el proceso completo",
+    faqHeading: "Preguntas frecuentes",
+    faqDescription: "Lo que más nos preguntan sobre este servicio.",
+    relatedHeading: "Otros servicios",
+    choosePackageLabel: "Elegir este paquete",
+    // SEO/AEO/GEO Phase 8 — internal linking explícito (§39 del prompt
+    // maestro): Maintenance y Diagnosis, ninguno de los dos enlazado
+    // desde el detalle de servicio hasta esta fase.
+    exploreMoreHeading: "Explora más",
+    maintenanceLinkLabel: "¿Ya tienes web? Conoce Mantenimiento",
+    diagnosisLinkLabel: "¿No sabes qué necesitas? Haz el diagnóstico",
   },
   work: {
     eyebrow: "Trabajo seleccionado",
@@ -354,6 +359,8 @@ export const es: Dictionary = {
       requiredError: "Este campo es obligatorio.",
       emailError: "Ingresa un correo electrónico válido.",
       minLengthError: "Cuéntanos un poco más — al menos 20 caracteres.",
+      selectedPlanLabel: "Plan seleccionado",
+      changePlanLabel: "Quitar",
     },
   },
   footer: {
@@ -409,6 +416,10 @@ export const es: Dictionary = {
   },
   skipToContent: "Saltar al contenido",
 
+  pricing: {
+    displayCurrencyLabel: "Mostrar precios en",
+  },
+
   ai: {
     name: "XAYVEN AI",
     greeting:
@@ -447,45 +458,92 @@ export const es: Dictionary = {
     heading: "Tu web no termina cuando la lanzamos.",
     description:
       "La mantenemos rápida, segura y actualizada para que tú puedas concentrarte en tu negocio.",
+    // Services/Maintenance Phase 4 — `slug` referencia pricing_catalog
+    // (mismo principio "slug es la referencia estable" ya usado por
+    // Services). `priceLabel` se eliminó de aquí — el precio real se
+    // resuelve en la página contra Pricing Core, nunca hardcodeado.
     plans: [
       {
+        slug: "essential",
         name: "Essential",
         tagline: "Lo básico, bien cuidado.",
         who: "Para sitios ya lanzados que necesitan seguir funcionando sin sorpresas.",
-        features: [
-          "Actualizaciones técnicas y de seguridad",
-          "Monitoreo de disponibilidad",
-          "Copias de seguridad periódicas",
-          "Soporte por correo",
-        ],
-        priceLabel: "Consultar",
       },
       {
+        slug: "growth",
         name: "Growth",
         tagline: "Mantenimiento con mejora continua.",
         who: "Para negocios que quieren que su web mejore con el tiempo, no solo que no se rompa.",
-        features: [
-          "Todo lo de Essential",
-          "Cambios de contenido periódicos",
-          "Optimización de velocidad",
-          "Revisión SEO básica recurrente",
-        ],
-        priceLabel: "Consultar",
       },
       {
+        slug: "care-plus",
         name: "Care+",
         tagline: "Acompañamiento cercano.",
         who: "Para negocios que quieren un equipo técnico disponible, sin contratar uno propio.",
-        features: [
-          "Todo lo de Growth",
-          "Prioridad de respuesta",
-          "Nuevas secciones o funcionalidades pequeñas",
-          "Acompañamiento estratégico periódico",
-        ],
-        priceLabel: "Consultar",
       },
     ],
+    perMonthSuffix: "/mes",
+    priceUnavailable: "Consultar",
     ctaLabel: "Solicitar mantenimiento",
+    about: {
+      whatHeading: "¿Qué es XAYVEN Maintenance?",
+      whatBody:
+        "Es el servicio de mantenimiento continuo para sitios ya construidos por XAYVEN (o que XAYVEN adopta): hosting, seguridad, actualizaciones y soporte para que el sitio siga funcionando sin que tengas que pensar en ello.",
+      whyHeading: "¿Por qué existe?",
+      whyBody:
+        "Un sitio web no termina el día que se publica — necesita actualizaciones, copias de seguridad, monitoreo y ajustes constantes. XAYVEN Maintenance existe para que esa responsabilidad no recaiga en ti.",
+      problemsHeading: "Qué problemas resuelve",
+      problems: [
+        "Sitios abandonados que dejan de recibir actualizaciones de seguridad.",
+        "Nadie responde cuando algo se rompe o el sitio se cae.",
+        "Contenido desactualizado porque no hay una forma simple de pedir cambios.",
+        "Cero visibilidad de cómo está funcionando realmente el sitio.",
+      ],
+    },
+    comparisonHeading: "Comparación de planes",
+    comparisonNote: "Los tres planes comparten la base de Essential — Growth y Care+ suman capacidad y prioridad, no la reemplazan.",
+    comparisonPriceRow: "Precio",
+    comparisonWhoRow: "Para quién",
+    comparisonIncludesRow: "Incluye",
+    faq: {
+      eyebrow: "Mantenimiento",
+      heading: "Preguntas frecuentes",
+      description: "Lo que más nos preguntan sobre los planes de mantenimiento.",
+      items: [
+        {
+          question: "¿Qué diferencia hay entre Essential, Growth y Care+?",
+          answer:
+            "Essential mantiene tu sitio funcionando (actualizaciones, monitoreo, backups, soporte por correo). Growth suma cambios de contenido periódicos, optimización y una revisión SEO recurrente. Care+ suma prioridad de respuesta, nuevas secciones pequeñas y acompañamiento estratégico.",
+        },
+        {
+          question: "¿Puedo cambiar de plan después?",
+          answer: "Sí — puedes solicitar un cambio de plan escribiéndonos o a través del formulario de esta misma página.",
+        },
+        {
+          question: "¿Necesito que mi sitio haya sido construido por XAYVEN?",
+          answer: "Lo ideal es que sí, pero XAYVEN puede evaluar sitios existentes de terceros caso por caso.",
+        },
+        {
+          question: "¿Qué pasa si no tengo ningún plan de mantenimiento?",
+          answer:
+            "Tu sitio sigue funcionando, pero sin actualizaciones, backups ni soporte activo de XAYVEN — cualquier problema de seguridad, caída o contenido desactualizado queda por tu cuenta.",
+        },
+        {
+          question: "¿El mantenimiento incluye cambios grandes de diseño o funcionalidades nuevas?",
+          answer:
+            "No — cambios grandes se cotizan aparte, como un proyecto. El mantenimiento cubre continuidad, cambios menores y mejora continua según el plan.",
+        },
+        {
+          question: "¿Cómo empiezo?",
+          answer: "Completa el formulario de esta página o cuéntale a XAYVEN AI qué plan te interesa.",
+        },
+      ],
+    },
+    aiHelp: {
+      heading: "¿Tienes dudas sobre mantenimiento?",
+      description: "Cuéntale a XAYVEN AI tu situación y te ayuda a identificar el plan correcto.",
+      cta: "Habla con XAYVEN AI",
+    },
     form: {
       heading: "Cuéntanos sobre tu web",
       description: "Completa este formulario y te contactamos con los siguientes pasos.",

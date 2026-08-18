@@ -39,9 +39,29 @@ export function deriveContactSubmitStatus(body: ContactApiResponse): "success" |
   return body.ok === true && body.persisted === true ? "success" : "error";
 }
 
-export function ContactForm({ form }: { form: Dictionary["contact"]["form"] }) {
+/** Resolved server-side by /contact/page.tsx from `?plan=<slug>` — never
+ *  constructed on the client. `null` means Flujo B/C (no plan selected),
+ *  the normal case for every submission before this phase. */
+export interface ContactFormSelectedPlan {
+  slug: string;
+  name: string;
+}
+
+export function ContactForm({
+  form,
+  selectedPlan = null,
+}: {
+  form: Dictionary["contact"]["form"];
+  selectedPlan?: ContactFormSelectedPlan | null;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Lets the visitor remove the pre-filled plan before submitting — purely
+  // a client-side display/payload choice. Removing it here only means the
+  // submission carries no `plan`; the server never re-derives one on its
+  // own, so this can't be used to swap in a different plan than the one
+  // /contact/page.tsx actually resolved.
+  const [activePlan, setActivePlan] = useState(selectedPlan);
   const formId = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -57,6 +77,7 @@ export function ContactForm({ form }: { form: Dictionary["contact"]["form"] }) {
       budget: String(data.get("budget") ?? "").trim(),
       message: String(data.get("message") ?? "").trim(),
       website: String(data.get("website") ?? ""), // honeypot
+      ...(activePlan ? { plan: activePlan.slug } : {}),
     };
 
     const nextErrors: FieldErrors = {};
@@ -97,6 +118,24 @@ export function ContactForm({ form }: { form: Dictionary["contact"]["form"] }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {activePlan && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border-accent bg-bg-raised px-4 py-3 text-sm">
+          <div>
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-fg-subtle">
+              {form.selectedPlanLabel}
+            </p>
+            <p className="mt-0.5 text-fg">{activePlan.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActivePlan(null)}
+            className="shrink-0 text-xs text-fg-muted underline-offset-2 transition-colors hover:text-fg hover:underline"
+          >
+            {form.changePlanLabel}
+          </button>
+        </div>
+      )}
+
       {/* Honeypot — hidden from real users, catches simple bots. */}
       <div className="hidden" aria-hidden="true">
         <label htmlFor={`${formId}-website`}>Website</label>

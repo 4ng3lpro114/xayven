@@ -1,0 +1,457 @@
+# XAYVEN — Catálogo Comercial y Precios
+
+> Documento de referencia para definir los paquetes, funcionalidades y precios comerciales de XAYVEN.
+>
+> **Estado:** Propuesta comercial inicial — pendiente de validación contra las funcionalidades realmente disponibles en producción.
+
+---
+
+# 1. PAQUETES DE CREACIÓN WEB
+
+## 🟣 XAYVEN START
+
+### Precio
+**$799.000 COP — Pago único**
+
+### Objetivo
+Para pequeños negocios, profesionales y emprendimientos que necesitan una presencia web profesional.
+
+### Incluye
+
+- Diseño personalizado
+- Diseño responsive
+- Dominio + SSL
+- Hosting y configuración técnica
+- SEO básico
+- WhatsApp
+- Integración de redes sociales
+- Google Maps
+- Formularios básicos
+- Galería/portafolio básico
+- Analytics básico
+- Hasta 3 páginas/secciones
+- Publicación y configuración final
+
+### No incluye
+
+- Sistema de reservas
+- Pagos online
+- Catálogo avanzado
+- Panel administrativo
+- Gestión de clientes
+- Gestión de proyectos
+- XAYVEN AI
+- Automatizaciones avanzadas
+
+### Posicionamiento
+
+**Presencia profesional.**
+
+El objetivo es que el negocio tenga una web profesional y funcional, no simplemente una plantilla visual.
+
+---
+
+# 2. 🟣 XAYVEN PROFESSIONAL ⭐
+
+### Precio
+**$1.499.000 COP — Pago único**
+
+### Objetivo
+Paquete principal de XAYVEN para negocios que quieren una web profesional orientada a conseguir clientes.
+
+### Incluye
+
+Todo lo incluido en START, más:
+
+- Diseño personalizado avanzado
+- Hasta 8 páginas/secciones
+- Formularios avanzados
+- Galería/portafolio
+- Analytics completo
+- SEO técnico y optimización básica
+- CTAs orientados a conversión
+- Sistema de promociones
+- Integraciones adicionales
+- Posibilidad de reservas
+- Posibilidad de catálogo
+- Posibilidad de XAYVEN AI
+- Integraciones con herramientas externas según alcance
+
+### Posicionamiento
+
+**Presencia + conversión.**
+
+La web no solo debe verse bien: debe estar diseñada para ayudar al negocio a conseguir clientes.
+
+---
+
+# 3. 🟣 XAYVEN BUSINESS
+
+### Precio
+**$2.499.000 COP — Pago único**
+
+### Objetivo
+Para negocios que necesitan que su web funcione como una herramienta real de operación y crecimiento.
+
+### Incluye
+
+Todo lo incluido en PROFESSIONAL, más:
+
+- Hasta 15 páginas/secciones
+- Panel administrativo
+- Gestión de clientes
+- Gestión de proyectos
+- Sistema de promociones
+- XAYVEN AI
+- Analytics avanzado
+- Catálogo de productos
+- Sistema de reservas
+- Pagos online
+- Formularios y gestión de leads
+- Integraciones avanzadas
+- Automatizaciones
+- Funcionalidades comerciales adicionales según alcance
+
+### Posicionamiento
+
+**Presencia + conversión + gestión.**
+
+La web comienza a formar parte de la operación digital del negocio.
+
+---
+
+# 4. 🛒 XAYVEN E-COMMERCE
+
+### Precio
+**Desde $3.499.000 COP — Pago único**
+
+> El precio final depende del alcance y complejidad del proyecto.
+
+### Objetivo
+
+Para negocios que necesitan vender productos o servicios directamente por Internet.
+
+### Incluye
+
+- Diseño personalizado
+- Diseño responsive
+- Catálogo de productos
+- Categorías
+- Productos y variantes
+- Carrito
+- Checkout
+- Pagos online
+- Gestión de pedidos
+- Estados de pedidos
+- Gestión de clientes
+- Promociones y descuentos
+- Analytics avanzado
+- SEO
+- WhatsApp
+- Panel administrativo
+- Integración con métodos de pago
+- Configuración de dominio/hosting
+- Publicación
+
+### El precio puede aumentar según
+
+- Cantidad de productos
+- Variantes
+- Inventario
+- Integraciones externas
+- Automatizaciones
+- Sistemas de envío
+- Facturación
+- Funcionalidades personalizadas
+- Complejidad del checkout
+
+### Posicionamiento
+
+**Venta online.**
+
+---
+
+# 5. 🟣 DESARROLLO PERSONALIZADO
+
+### Precio
+**Desde $6.000.000 COP**
+
+### Objetivo
+
+Para proyectos que exceden las capacidades de los paquetes estándar.
+
+### Ejemplos
+
+- Plataformas web
+- Dashboards
+- Sistemas internos
+- Sistemas de reservas complejos
+- Membresías
+- Automatizaciones avanzadas
+- Integraciones personalizadas
+- CRM personalizados
+- Aplicaciones web
+- Sistemas empresariales
+- Funcionalidades especiales
+
+### Precio
+
+**Cotización personalizada según alcance.**
+
+---
+
+# 6. 🔌 FUNCIONALIDADES ADICIONALES
+
+Las funcionalidades adicionales permiten ampliar un paquete sin necesidad de cambiar completamente de plan.
+
+| Funcionalidad | Precio desde |
+|---|---:|
+| XAYVEN AI | $199.000 COP |
+| Sistema de reservas | $299.000 COP |
+| Catálogo avanzado | $299.000 COP |
+| Pagos online | $299.000 COP |
+| SEO avanzado | $399.000 COP |
+| Automatización | $399.000 COP |
+| Integración externa | $299.000 COP |
+| Funcionalidad personalizada | Cotización |
+
+> Los precios de los adicionales son referenciales y deben validarse antes de convertirse en precios definitivos del sistema.
+
+---
+
+# 7. 🔧 PLANES DE MANTENIMIENTO
+
+Los nombres de los planes son oficiales y deben mantenerse exactamente como están escritos.
+
+---
+
+## Essential
+
+### Precio
+**$149.000 COP / mes**
+
+### Objetivo
+Mantener el sitio funcionando correctamente.
+
+### Incluye
+
+- Hosting
+- SSL
+- Backups
+- Monitoreo
+- Actualizaciones
+- Correcciones menores
+- Soporte básico
+
+### Posicionamiento
+
+**Mantener funcionando.**
+
+---
+
+## Growth ⭐
+
+### Precio
+**$299.000 COP / mes**
+
+### Objetivo
+Mantener y mejorar continuamente el sitio.
+
+### Incluye
+
+Todo lo incluido en Essential, más:
+
+- Cambios de contenido
+- Mejoras continuas
+- Optimización
+- SEO básico continuo
+- Analytics
+- Soporte prioritario
+
+### Posicionamiento
+
+**Mantener + mejorar.**
+
+---
+
+## Care+
+
+### Precio
+**$499.000 COP / mes**
+
+### Objetivo
+Para negocios que dependen más de su plataforma y necesitan atención prioritaria.
+
+### Incluye
+
+Todo lo incluido en Growth, más:
+
+- Mayor capacidad de cambios
+- Optimización continua
+- Revisiones de seguridad
+- Mejoras de conversión
+- Monitoreo avanzado
+- Prioridad de desarrollo
+
+### Posicionamiento
+
+**Mantener + mejorar + prioridad.**
+
+---
+
+# 8. 📊 POSICIONAMIENTO DE LOS PAQUETES
+
+| Paquete | Concepto |
+|---|---|
+| START | Presencia |
+| PROFESSIONAL | Presencia + Conversión |
+| BUSINESS | Presencia + Conversión + Gestión |
+| E-COMMERCE | Venta online |
+| CUSTOM | Soluciones personalizadas |
+
+---
+
+# 9. 💡 FILOSOFÍA COMERCIAL DE XAYVEN
+
+XAYVEN no busca competir únicamente por precio.
+
+Existen opciones económicas en el mercado que pueden entregar páginas visualmente atractivas por mucho menos dinero.
+
+La diferencia de XAYVEN debe ser:
+
+> **Diseño + utilidad.**
+
+Una página puede ser visualmente impresionante y, al mismo tiempo, aportar muy poco al negocio.
+
+XAYVEN busca entregar ambas cosas:
+
+### 🎨 Diseño
+
+Una web moderna, profesional y adaptada a la identidad del negocio.
+
+### ⚙️ Utilidad
+
+Una herramienta que realmente pueda ayudar al negocio mediante funcionalidades como:
+
+- Formularios
+- WhatsApp
+- Reservas
+- Catálogos
+- Pagos
+- Analytics
+- Promociones
+- IA
+- Gestión de clientes
+- Gestión de proyectos
+- Automatizaciones
+- Integraciones
+
+### Concepto de marca
+
+> **No solo una página bonita. Una página que hace algo.**
+
+Otra línea posible:
+
+> **Diseño que impresiona. Tecnología que funciona.**
+
+---
+
+# 10. 💰 ARQUITECTURA COMERCIAL OBJETIVO
+
+El sistema de precios debe funcionar de esta manera:
+
+SERVICIO / PRODUCTO
+↓
+PRECIO BASE
+↓
+PROMOCIÓN / DESCUENTO
+↓
+PRECIO FINAL
+↓
+COTIZACIÓN
+↓
+PROYECTO
+↓
+CHECKOUT
+↓
+PAGO
+↓
+ANALYTICS
+
+Ejemplo:
+
+### Web Professional
+
+Precio base:
+
+**$1.499.000 COP**
+
+Promoción:
+
+**20% OFF**
+
+Descuento:
+
+**-$299.800 COP**
+
+Precio final:
+
+**$1.199.200 COP**
+
+El precio final debe ser el precio real utilizado por el checkout y el sistema de pagos.
+
+---
+
+# 11. 🔐 PRINCIPIO DE SEGURIDAD DE PRECIOS
+
+El precio final nunca debe depender exclusivamente de un valor enviado por el frontend.
+
+Ejemplo incorrecto:
+
+```text
+Frontend → amount: 500000
+Backend → cobra 500000
+
+12. 📈 INTEGRACIÓN CON ANALYTICS
+
+El sistema debe conservar, cuando corresponda:
+
+Precio base
+Promoción utilizada
+Porcentaje de descuento
+Valor del descuento
+Precio final
+Monto realmente pagado
+Moneda
+Cliente
+Proyecto
+Pago
+Promoción de origen
+
+Esto permitirá posteriormente calcular:
+
+Revenue
+Descuentos otorgados
+Average Order Value
+Conversión
+Revenue por promoción
+Ingresos por servicio
+ROI de promociones
+13. ⚠️ ESTADO DEL DOCUMENTO
+
+Estos precios y funcionalidades representan una propuesta comercial inicial.
+
+Antes de convertirlos en la configuración oficial del sistema:
+
+Auditar las funcionalidades actualmente disponibles.
+Confirmar qué funcionalidades están realmente listas para vender.
+Confirmar los precios existentes actualmente en el código y base de datos.
+Resolver posibles conflictos.
+Definir el Pricing Core.
+Centralizar los precios.
+Conectar promociones.
+Conectar checkout.
+Conectar pagos.
+Conectar Analytics.
+
+No considerar este documento como fuente técnica definitiva hasta completar esa validación.

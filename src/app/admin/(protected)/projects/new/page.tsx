@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getClientById } from "@/lib/db/paymentsStore";
 import { listConversations } from "@/lib/db/conversationStore";
 import { NewProjectForm } from "@/components/admin/NewProjectForm";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +31,15 @@ export default async function NewProjectPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-fg">Nuevo proyecto</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        {preselectedClient
-          ? `Vas a crear un proyecto para ${preselectedClient.name}. Se genera automáticamente un enlace privado de seguimiento (área del cliente) que podrás copiar en la página del proyecto.`
-          : "Crea el cliente y el proyecto. Se genera automáticamente un enlace privado de seguimiento (área del cliente) que podrás copiar en la página del proyecto."}
-      </p>
+      <AdminPageHeader
+        eyebrow="Comercial"
+        title="Nuevo proyecto"
+        description={
+          preselectedClient
+            ? `Vas a crear un proyecto para ${preselectedClient.name}. Se genera automáticamente un enlace privado de seguimiento (área del cliente) que podrás copiar en la página del proyecto.`
+            : "Crea el cliente y el proyecto. Se genera automáticamente un enlace privado de seguimiento (área del cliente) que podrás copiar en la página del proyecto."
+        }
+      />
       <div className="mt-8">
         <NewProjectForm preselectedClient={preselectedClient} />
       </div>

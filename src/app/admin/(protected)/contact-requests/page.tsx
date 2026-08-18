@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { Inbox } from "lucide-react";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
+import { listPricingCatalogItems } from "@/lib/db/pricingCatalogStore";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
+import { AdminEmptyState } from "@/components/admin/ui/AdminEmptyState";
 import { cn } from "@/lib/utils";
 import type { ContactRequest } from "@/lib/db/types";
 
@@ -32,14 +36,30 @@ interface PageProps {
   searchParams: Promise<{ filter?: string }>;
 }
 
+/** Fase 2 — Pricing Core → Project Request. Read-only display only: no
+ *  proposal/negotiation UI here yet (that's the next phase). `null` covers
+ *  both Flujo B/C (no plan selected) and pre-Fase-2 historical requests —
+ *  deliberately shown the same way, since neither is an error state. */
+function requestedPlanLabel(
+  pricingCatalogId: string | null,
+  catalogNameById: Map<string, string>
+): string {
+  if (!pricingCatalogId) return "Solicitud personalizada";
+  return catalogNameById.get(pricingCatalogId) ?? "Solicitud personalizada";
+}
+
 export default async function AdminContactRequestsPage({ searchParams }: PageProps) {
   const { filter = "all" } = await searchParams;
   const activeFilter = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]!;
 
-  const requests = await listContactRequests({
-    status: activeFilter.key === "all" ? undefined : (activeFilter.key as ContactRequest["status"]),
-    limit: AGGREGATION_LIMIT,
-  });
+  const [requests, catalogItems] = await Promise.all([
+    listContactRequests({
+      status: activeFilter.key === "all" ? undefined : (activeFilter.key as ContactRequest["status"]),
+      limit: AGGREGATION_LIMIT,
+    }),
+    listPricingCatalogItems(),
+  ]);
+  const catalogNameById = new Map(catalogItems.map((item) => [item.id, item.name]));
 
   const emptyMessage =
     activeFilter.key === "all"
@@ -48,12 +68,13 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-fg">Solicitudes</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        Envíos del formulario público &ldquo;Crear mi proyecto&rdquo;.
-      </p>
+      <AdminPageHeader
+        eyebrow="Comercial"
+        title="Solicitudes"
+        description="Envíos del formulario público “Crear mi proyecto”."
+      />
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.key}
@@ -71,7 +92,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
       </div>
 
       {/* Desktop: tabla. Mobile: tarjetas apiladas — mismo patrón que /admin/clients. */}
-      <div className="mt-6 hidden overflow-x-auto rounded-lg border border-border sm:block">
+      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-border bg-bg-raised shadow-soft sm:block">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-fg-subtle">
@@ -79,6 +100,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
               <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Tipo de proyecto</th>
               <th className="px-4 py-3 font-medium">Presupuesto</th>
+              <th className="px-4 py-3 font-medium">Plan solicitado</th>
               <th className="px-4 py-3 font-medium">Fecha</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium" />
@@ -87,13 +109,13 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
           <tbody>
             {requests.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-fg-subtle">
-                  {emptyMessage}
+                <td colSpan={8} className="px-4 py-10">
+                  <AdminEmptyState icon={Inbox} title={emptyMessage} />
                 </td>
               </tr>
             )}
             {requests.map((r) => (
-              <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg-raised">
+              <tr key={r.id} className="border-b border-border last:border-0 transition-colors hover:bg-bg-elevated">
                 <td className="px-4 py-3">
                   <Link href={`/admin/contact-requests/${r.id}`} className="text-fg hover:text-accent-300">
                     {r.name}
@@ -103,6 +125,9 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
                 <td className="px-4 py-3 text-fg-muted">{r.company || "—"}</td>
                 <td className="px-4 py-3 text-fg-muted">{r.projectType}</td>
                 <td className="px-4 py-3 text-fg-muted">{r.budget}</td>
+                <td className="px-4 py-3 text-fg-muted">
+                  {requestedPlanLabel(r.pricingCatalogId, catalogNameById)}
+                </td>
                 <td className="px-4 py-3 text-fg-subtle">{DATE_FORMAT.format(new Date(r.createdAt))}</td>
                 <td className="px-4 py-3">
                   <ContactRequestStatusBadge status={r.status} />
@@ -122,16 +147,12 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
       </div>
 
       <div className="mt-6 space-y-3 sm:hidden">
-        {requests.length === 0 && (
-          <p className="rounded-lg border border-border px-4 py-8 text-center text-sm text-fg-subtle">
-            {emptyMessage}
-          </p>
-        )}
+        {requests.length === 0 && <AdminEmptyState icon={Inbox} title={emptyMessage} />}
         {requests.map((r) => (
           <Link
             key={r.id}
             href={`/admin/contact-requests/${r.id}`}
-            className="block rounded-lg border border-border bg-bg-raised p-4 transition-colors hover:border-border-accent"
+            className="block rounded-xl border border-border bg-bg-raised p-4 shadow-soft transition-colors hover:border-border-accent"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -144,6 +165,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
               {r.company && <span>{r.company}</span>}
               <span>{r.projectType}</span>
               <span>{r.budget}</span>
+              <span>{requestedPlanLabel(r.pricingCatalogId, catalogNameById)}</span>
             </div>
             <p className="mt-2 text-xs text-fg-subtle">{DATE_FORMAT.format(new Date(r.createdAt))}</p>
           </Link>

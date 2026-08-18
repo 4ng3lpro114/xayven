@@ -25,6 +25,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     clientId: null,
     convertedAt: null,
     promotionId: null,
+    servicePageSlug: null,
     visitorName: null,
     visitorEmail: null,
     visitorPhone: null,

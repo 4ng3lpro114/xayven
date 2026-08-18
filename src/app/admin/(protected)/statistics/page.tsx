@@ -20,6 +20,9 @@ import {
   buildPromotionAttributionStats,
 } from "@/lib/statistics/aggregate";
 import { listPromotions } from "@/lib/db/promotionStore";
+import { listAnalyticsEvents } from "@/lib/db/analyticsEventStore";
+import { buildAnalyticsFunnelStats } from "@/lib/analytics/aggregate";
+import { ANALYTICS_EVENT_TYPES, type AnalyticsEventType } from "@/lib/analytics/types";
 import { buildConversionVelocityStats } from "@/lib/statistics/conversionVelocity";
 import { buildLeadActivityStats } from "@/lib/statistics/leadActivity";
 import { PROJECT_WORK_STAGE_LABELS_ES } from "@/lib/statistics/projectStages";
@@ -38,6 +41,7 @@ import { PromotionAttributionSummary } from "@/components/admin/statistics/Promo
 import { StatisticsTabs, isValidStatisticsTab, type StatisticsTab } from "@/components/admin/statistics/StatisticsTabs";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { LeadStatusBadge } from "@/components/admin/LeadStatusBadge";
+import { AdminPageHeader } from "@/components/admin/ui/AdminPageHeader";
 import { cn } from "@/lib/utils";
 import type { PaymentStatus, PaymentType } from "@/lib/payments/types";
 import type { LeadStatus } from "@/lib/db/types";
@@ -109,14 +113,9 @@ export default async function AdminStatisticsPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-fg">Estadísticas</h1>
-          <p className="mt-1 text-sm text-fg-muted">Centro de inteligencia administrativa de XAYVEN</p>
-        </div>
-      </div>
+      <AdminPageHeader eyebrow="Insights" title="Estadísticas" description="Centro de inteligencia administrativa de XAYVEN" />
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
         {STATISTICS_PERIODS.map((p) => (
           <Link
             key={p.key}
@@ -166,6 +165,7 @@ export default async function AdminStatisticsPage({ searchParams }: PageProps) {
           <IATab snapshot={snapshot} aiStats={aiStats} periodPhrase={periodPhrase} />
         )}
         {tab === "mantenimiento" && <MantenimientoTab payments={payments} />}
+        {tab === "comercial" && <ComercialTab />}
         {tab === "fuentes" && <FuentesTab conversations={conversations} />}
       </div>
     </div>
@@ -756,6 +756,73 @@ async function MantenimientoTab({ payments }: { payments: Awaited<ReturnType<typ
           <MoneyByCurrencyValue byCurrency={stats.revenueByCurrency} />
         </p>
       </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Funnel Comercial (Analytics Phase 7 — analytics_events, real desde esta
+// fase; cero eventos existían antes en todo el esquema)
+// ---------------------------------------------------------------------------
+
+const ANALYTICS_EVENT_LABELS_ES: Record<AnalyticsEventType, string> = {
+  service_page_view: "Vistas de página de servicio",
+  service_ai_cta: "Clicks en \"Habla con XAYVEN AI\" (servicio)",
+  service_project_cta: "Clicks en \"Iniciar proyecto\" (servicio)",
+  maintenance_plan_view: "Vistas de plan de mantenimiento",
+  maintenance_cta: "Clicks en CTA de mantenimiento",
+  pricing_package_view: "Vistas de paquete",
+  pricing_package_cta: "Clicks en \"Elegir paquete\"",
+};
+
+async function ComercialTab() {
+  // listAnalyticsEvents() solo se pide para esta pestaña — misma
+  // disciplina de "solo la pestaña activa pide su dato extra" que
+  // Funnel/Velocidad/Mantenimiento/Fuentes ya usan.
+  const events = await listAnalyticsEvents({ limit: AGGREGATION_LIMIT });
+  const stats = buildAnalyticsFunnelStats(events);
+
+  return (
+    <>
+      <p className="max-w-2xl text-sm text-fg-muted">
+        Basado en <code>analytics_events</code> — los 7 eventos mínimos definidos para Services/
+        Pricing/Maintenance. Todo el tiempo, sin filtro de período todavía (la tabla es nueva
+        desde esta fase, no hay histórico previo que perder).
+      </p>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {ANALYTICS_EVENT_TYPES.map((type) => (
+          <StatCard key={type} label={ANALYTICS_EVENT_LABELS_ES[type]} value={stats.countsByType[type]} />
+        ))}
+      </div>
+
+      <h2 className="mt-10 text-lg font-semibold text-fg">Servicios más vistos</h2>
+      {stats.topServicesByView.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-subtle">Sin datos todavía.</p>
+      ) : (
+        <ul className="mt-3 max-w-md divide-y divide-border rounded-lg border border-border bg-bg-raised">
+          {stats.topServicesByView.map((row) => (
+            <li key={row.slug} className="flex items-center justify-between px-4 py-2.5 text-sm">
+              <span className="text-fg-muted">{row.slug}</span>
+              <span className="font-medium text-fg">{row.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h2 className="mt-8 text-lg font-semibold text-fg">Paquetes más elegidos</h2>
+      {stats.topPackagesByCta.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-subtle">Sin datos todavía.</p>
+      ) : (
+        <ul className="mt-3 max-w-md divide-y divide-border rounded-lg border border-border bg-bg-raised">
+          {stats.topPackagesByCta.map((row) => (
+            <li key={row.slug} className="flex items-center justify-between px-4 py-2.5 text-sm">
+              <span className="text-fg-muted">{row.slug}</span>
+              <span className="font-medium text-fg">{row.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }

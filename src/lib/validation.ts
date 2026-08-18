@@ -18,6 +18,25 @@ export const contactSchema = z.object({
    * silently no-ops instead of returning a 400 that would tip off a bot.
    */
   website: z.string().max(200).optional().or(z.literal("")),
+  /**
+   * Fase 2 — Pricing Core → Project Request. Only ever sent when the
+   * visitor arrived from a package CTA with a `?plan=<slug>` (see
+   * /contact/page.tsx), never typed by hand. Same discipline as
+   * chatTurnSchema's `promotionId`: a well-formed but unknown/inactive
+   * slug is NOT a validation error here — the route re-resolves it
+   * server-side against the real pricing catalog and silently stores
+   * `null` instead of failing the whole submission over a stale/tampered
+   * value. Shape-only check (matches pricingCatalogItemSchema's slug
+   * regex); absent entirely is the normal case for Flujo B/C.
+   */
+  plan: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9-]+$/)
+    .optional()
+    .or(z.literal("")),
 });
 
 export type ContactInput = z.infer<typeof contactSchema>;
@@ -70,6 +89,23 @@ export const chatTurnSchema = z.object({
    * promotion.
    */
   promotionId: z.string().uuid().optional(),
+  /**
+   * Services Phase 3 — only ever sent by ChatWidget's own service-CTA
+   * handoff (see clientSession.ts's setServiceContext/
+   * consumeServiceContext), never a regular typed message. Same
+   * discipline as promotionId above: a well-formed but non-existent/
+   * unpublished slug is NOT a validation error — the route re-validates
+   * it server-side and silently skips attribution (see
+   * /api/ai/chat/route.ts). Shape-only check here (matches
+   * services/validation.ts's slug regex).
+   */
+  serviceSlug: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
 });
 
 export type ChatTurnInput = z.infer<typeof chatTurnSchema>;

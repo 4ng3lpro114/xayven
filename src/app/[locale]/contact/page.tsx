@@ -10,6 +10,7 @@ import { CONTACT_EMAIL } from "@/lib/constants";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { hasLocale, type Locale } from "@/lib/i18n/config";
 import { buildMetadata } from "@/lib/seo";
+import { getPricingCatalogItemBySlug } from "@/lib/db/pricingCatalogStore";
 
 export async function generateMetadata({
   params,
@@ -25,10 +26,25 @@ export async function generateMetadata({
   });
 }
 
-export default async function ContactPage({ params }: PageProps<"/[locale]/contact">) {
+export default async function ContactPage({
+  params,
+  searchParams,
+}: {
+  params: PageProps<"/[locale]/contact">["params"];
+  searchParams: Promise<{ plan?: string }>;
+}) {
   const { locale: rawLocale } = await params;
   if (!hasLocale(rawLocale)) notFound();
   const dict = await getDictionary(hasLocale(rawLocale) ? rawLocale : "es");
+
+  // Flujo A — arrived from a package CTA with `?plan=<slug>`. Resolved
+  // server-side against the real, active catalog (never trusted as-is);
+  // an absent, unknown, or deactivated slug is not an error — it's
+  // treated exactly like Flujo C (no plan selected), same as
+  // /api/contact/route.ts's own resolution.
+  const { plan: planSlug } = await searchParams;
+  const selectedPlan = planSlug ? await getPricingCatalogItemBySlug(planSlug) : null;
+  const resolvedPlan = selectedPlan && selectedPlan.isActive ? selectedPlan : null;
 
   return (
     <>
@@ -60,7 +76,10 @@ export default async function ContactPage({ params }: PageProps<"/[locale]/conta
             </Reveal>
 
             <Reveal delay={0.05}>
-              <ContactForm form={dict.contact.form} />
+              <ContactForm
+                form={dict.contact.form}
+                selectedPlan={resolvedPlan ? { slug: resolvedPlan.slug, name: resolvedPlan.name } : null}
+              />
             </Reveal>
           </div>
         </Container>
