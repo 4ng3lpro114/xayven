@@ -11,6 +11,8 @@ import { buildMetadata } from "@/lib/seo";
 import { SITE_URL, WHATSAPP_NUMBER } from "@/lib/constants";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/supabaseServer";
+import { resolveCommercialMarket } from "@/lib/pricing/commercialContext";
+import { listPricingMarkets } from "@/lib/db/pricingMarketStore";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,7 +75,26 @@ export default async function LocaleLayout({
   // (same getSessionUser() the /account page itself uses) — never trusts
   // a client-side-only flag, never localStorage. Determines only which
   // single label/link the header shows; no other behavior depends on it.
-  const user = await getSessionUser();
+  //
+  // Commercial Market Selector (approved 2026-08-18) — resolved once,
+  // site-wide, for the Footer selector. This layout already forces
+  // dynamic rendering via getSessionUser()'s own cookies() read, so
+  // resolving the market here (also cookies()/headers()-based) crosses
+  // no new static→dynamic boundary. `resolveCommercialMarket()`/
+  // `listPricingMarkets()` themselves are untouched — this is purely a
+  // new READ, not a change to either function. Pages that show prices
+  // (Services/Maintenance) still resolve their own market independently,
+  // exactly as before this feature — this call never replaces that.
+  //
+  // All three calls below are independent of each other's results (none
+  // reads what another returns), so they run in one Promise.all instead
+  // of sequential awaits — same three DB/auth round-trips as before,
+  // just concurrent instead of serialized one-after-another.
+  const [user, { market: resolvedMarket, source: marketSource }, activeMarkets] = await Promise.all([
+    getSessionUser(),
+    resolveCommercialMarket(),
+    listPricingMarkets({ activeOnly: true }),
+  ]);
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -134,7 +155,13 @@ export default async function LocaleLayout({
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        <Footer locale={locale} dict={dict} />
+        <Footer
+          locale={locale}
+          dict={dict}
+          markets={activeMarkets.map((m) => ({ code: m.code, currency: m.currency }))}
+          currentMarketCode={resolvedMarket.code}
+          isManual={marketSource === "explicit_cookie"}
+        />
         <ChatWidget
           dict={dict.ai}
           locale={locale}

@@ -4,13 +4,23 @@ import { NAV_ITEMS } from "@/lib/constants";
 import { CONTACT_EMAIL } from "@/lib/constants";
 import { locales, localeNames, localizePath, type Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionary";
+import { CommercialMarketSelector } from "@/components/pricing/CommercialMarketSelector";
 
 interface FooterProps {
   locale: Locale;
   dict: Dictionary;
+  /** Commercial Market Selector (approved 2026-08-18) — resolved once in
+   *  [locale]/layout.tsx (resolveCommercialMarket()/listPricingMarkets(),
+   *  both untouched by this feature) and threaded down here so Footer
+   *  stays a plain Server Component; CommercialMarketSelector itself
+   *  decides (client-side, via usePathname()) whether to render at all
+   *  on portal/auth routes. */
+  markets: readonly { code: string; currency: string }[];
+  currentMarketCode: string;
+  isManual: boolean;
 }
 
-export function Footer({ locale, dict }: FooterProps) {
+export function Footer({ locale, dict, markets, currentMarketCode, isManual }: FooterProps) {
   const year = new Date().getFullYear();
   const currentPath = `/${locale}`;
 
@@ -82,6 +92,21 @@ export function Footer({ locale, dict }: FooterProps) {
                 </li>
               ))}
             </ul>
+
+            <h2 className="mt-8 font-mono text-xs uppercase tracking-[0.14em] text-fg-subtle">
+              {dict.pricing.marketLabel}
+            </h2>
+            <div className="mt-4">
+              <CommercialMarketSelector
+                markets={markets}
+                currentMarketCode={currentMarketCode}
+                isManual={isManual}
+                marketNames={dict.pricing.marketNames}
+                label={dict.pricing.marketLabel}
+                explanation={dict.pricing.marketExplanation}
+                automaticLabel={dict.pricing.marketAutomaticLabel}
+              />
+            </div>
           </div>
         </div>
 

@@ -418,6 +418,15 @@ export const es: Dictionary = {
 
   pricing: {
     displayCurrencyLabel: "Mostrar precios en",
+    marketLabel: "Mercado comercial",
+    marketExplanation: "Tu mercado determina el precio comercial. La moneda solo cambia cómo se muestra.",
+    marketAutomaticLabel: "Detectar automáticamente",
+    marketNames: {
+      CO: "Colombia",
+      US: "Estados Unidos",
+      EU: "Europa",
+      OTHER: "Otros mercados",
+    },
   },
 
   ai: {
