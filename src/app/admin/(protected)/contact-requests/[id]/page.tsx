@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ArrowLeft, Mail, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getContactRequestById } from "@/lib/db/contactRequestStore";
+import { getPricingCatalogItemById } from "@/lib/db/pricingCatalogStore";
 import { getClientById } from "@/lib/db/paymentsStore";
 import { buildContactRequestMailto } from "@/lib/contact/mailto";
 import { deriveContactRequestClientBanner } from "@/lib/contact/clientBanner";
@@ -30,6 +31,16 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
   // gracefully here rather than crash — the request itself must always
   // stay visible.
   const linkedClient = request.clientId ? await getClientById(request.clientId) : null;
+
+  // Fase 2 — Pricing Core → Project Request. Read-only display only — no
+  // proposal/negotiation UI yet (that's the next phase, "PROJECT
+  // PROPOSALS"). `null` covers Flujo B/C (no plan selected) and every
+  // request created before this column existed — same honest "no plan"
+  // treatment as requestedPlanLabel() in the list page, never an error.
+  const requestedPlan = request.pricingCatalogId
+    ? await getPricingCatalogItemById(request.pricingCatalogId)
+    : null;
+  const requestedPlanLabel = requestedPlan ? requestedPlan.name : "Solicitud personalizada";
 
   // `request.status` is the single source of truth for "was this ever
   // converted?" — NEVER `request.clientId` alone. `client_id` gets nulled
@@ -193,9 +204,10 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
 
       {/* PROYECTO */}
       <h2 className="mt-8 text-xs font-mono uppercase tracking-[0.1em] text-fg-subtle">Proyecto</h2>
-      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+      <div className="mt-3 grid gap-4 sm:grid-cols-3">
         <Field label="Tipo de proyecto" value={request.projectType} />
         <Field label="Presupuesto" value={request.budget} />
+        <Field label="Plan solicitado" value={requestedPlanLabel} />
       </div>
 
       {/* MENSAJE */}

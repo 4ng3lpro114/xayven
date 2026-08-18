@@ -48,6 +48,16 @@ export interface Conversation {
    *  originate from a promotion. */
   promotionId: string | null;
 
+  /** Services Phase 3 (0018_conversations_service_page_slug.sql) — set at
+   *  most once, the first time a visitor opens the chat via a service
+   *  detail page's AI CTA (first-touch, sticky — same discipline as
+   *  promotionId above, never overwritten by a later message). Server-
+   *  validated before being set (see /api/ai/chat/route.ts): only a slug
+   *  that resolves to a real, published service can ever be attributed.
+   *  Deliberately a slug, not a services.id FK — see the migration's own
+   *  comment. Null for the overwhelming majority of conversations. */
+  servicePageSlug: string | null;
+
   visitorName: string | null;
   visitorEmail: string | null;
   /** Only ever filled in if the visitor shares it voluntarily in the chat —
@@ -134,6 +144,13 @@ export interface ContactRequest {
    *  0009_contact_requests_client_was_created.sql existed — never
    *  guessed, shown as a neutral "Cliente asociado" state instead. */
   clientWasCreated: boolean | null;
+  /** Resolved server-side against pricing_catalog at submission time (see
+   *  /api/contact/route.ts) — never a raw client-supplied slug. `null`
+   *  means no package was selected: a personalized-proposal entry point
+   *  (Flujo B), a direct /contact visit (Flujo C), or any request created
+   *  before this column existed (0015_contact_requests_pricing_catalog_id.sql).
+   *  Never treated as an error state. */
+  pricingCatalogId: string | null;
 }
 
 export interface ConversationCounts {

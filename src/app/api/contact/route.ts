@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { contactSchema } from "@/lib/validation";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
 import { createContactRequest } from "@/lib/db/contactRequestStore";
+import { getPricingCatalogItemBySlug } from "@/lib/db/pricingCatalogStore";
 import { logContactEvent } from "@/lib/contact/log";
 
 export const runtime = "nodejs";
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "validation_failed" }, { status: 400 });
   }
 
-  const { website, ...data } = parsed.data;
+  const { website, plan, ...data } = parsed.data;
   if (website) {
     // Honeypot triggered — silently accept so the bot doesn't learn
     // anything. Deliberately not persisted, not logged: same behavior as
@@ -56,6 +57,21 @@ export async function POST(request: NextRequest) {
   }
 
   logContactEvent("CONTACT_RECEIVED", { email: data.email });
+
+  // Fase 2 — Pricing Core → Project Request. `plan` is a raw, client-
+  // supplied slug — never trusted directly (same discipline as
+  // resolveActivePromotion() in /api/ai/chat/route.ts). Resolve it against
+  // the real, active catalog here; anything that doesn't resolve (absent,
+  // unknown slug, or a slug that's since been deactivated) silently
+  // becomes `null` rather than a validation error — Flujo B/C (no plan)
+  // is a normal, expected case, not a failure.
+  let pricingCatalogId: string | null = null;
+  if (plan) {
+    const catalogItem = await getPricingCatalogItemBySlug(plan);
+    if (catalogItem && catalogItem.isActive) {
+      pricingCatalogId = catalogItem.id;
+    }
+  }
 
   let contactRequest: Awaited<ReturnType<typeof createContactRequest>>;
   try {
@@ -66,6 +82,7 @@ export async function POST(request: NextRequest) {
       projectType: data.projectType,
       budget: data.budget,
       message: data.message,
+      pricingCatalogId,
     });
   } catch (error) {
     // Never claim success when the request was never actually saved — see

@@ -84,6 +84,22 @@ export default async function LocaleLayout({
     sameAs: [],
   };
 
+  // SEO/AEO/GEO Phase 8 (§19 "evaluar WebSite/WebPage") — WebSite added
+  // site-wide, once, alongside Organization. No `potentialAction`
+  // SearchAction: this site has no internal search feature, so adding
+  // one would be a fabricated capability, not real data. A generic
+  // `WebPage` type per-page was deliberately NOT added — every page that
+  // already has a more specific type (Service on service detail,
+  // FAQPage where FAQ exists) would just be duplicating a less specific
+  // type over a more specific one, which contradicts "no generar Schema
+  // por cantidad" (§19).
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "XAYVEN",
+    url: SITE_URL,
+  };
+
   return (
     <html
       lang={locale}
@@ -130,6 +146,10 @@ export default async function LocaleLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
       </body>
     </html>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
+import { listPricingCatalogItems } from "@/lib/db/pricingCatalogStore";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
 import { cn } from "@/lib/utils";
 import type { ContactRequest } from "@/lib/db/types";
@@ -32,14 +33,30 @@ interface PageProps {
   searchParams: Promise<{ filter?: string }>;
 }
 
+/** Fase 2 — Pricing Core → Project Request. Read-only display only: no
+ *  proposal/negotiation UI here yet (that's the next phase). `null` covers
+ *  both Flujo B/C (no plan selected) and pre-Fase-2 historical requests —
+ *  deliberately shown the same way, since neither is an error state. */
+function requestedPlanLabel(
+  pricingCatalogId: string | null,
+  catalogNameById: Map<string, string>
+): string {
+  if (!pricingCatalogId) return "Solicitud personalizada";
+  return catalogNameById.get(pricingCatalogId) ?? "Solicitud personalizada";
+}
+
 export default async function AdminContactRequestsPage({ searchParams }: PageProps) {
   const { filter = "all" } = await searchParams;
   const activeFilter = FILTERS.find((f) => f.key === filter) ?? FILTERS[0]!;
 
-  const requests = await listContactRequests({
-    status: activeFilter.key === "all" ? undefined : (activeFilter.key as ContactRequest["status"]),
-    limit: AGGREGATION_LIMIT,
-  });
+  const [requests, catalogItems] = await Promise.all([
+    listContactRequests({
+      status: activeFilter.key === "all" ? undefined : (activeFilter.key as ContactRequest["status"]),
+      limit: AGGREGATION_LIMIT,
+    }),
+    listPricingCatalogItems(),
+  ]);
+  const catalogNameById = new Map(catalogItems.map((item) => [item.id, item.name]));
 
   const emptyMessage =
     activeFilter.key === "all"
@@ -79,6 +96,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
               <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Tipo de proyecto</th>
               <th className="px-4 py-3 font-medium">Presupuesto</th>
+              <th className="px-4 py-3 font-medium">Plan solicitado</th>
               <th className="px-4 py-3 font-medium">Fecha</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium" />
@@ -87,7 +105,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
           <tbody>
             {requests.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-fg-subtle">
+                <td colSpan={8} className="px-4 py-8 text-center text-fg-subtle">
                   {emptyMessage}
                 </td>
               </tr>
@@ -103,6 +121,9 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
                 <td className="px-4 py-3 text-fg-muted">{r.company || "—"}</td>
                 <td className="px-4 py-3 text-fg-muted">{r.projectType}</td>
                 <td className="px-4 py-3 text-fg-muted">{r.budget}</td>
+                <td className="px-4 py-3 text-fg-muted">
+                  {requestedPlanLabel(r.pricingCatalogId, catalogNameById)}
+                </td>
                 <td className="px-4 py-3 text-fg-subtle">{DATE_FORMAT.format(new Date(r.createdAt))}</td>
                 <td className="px-4 py-3">
                   <ContactRequestStatusBadge status={r.status} />
@@ -144,6 +165,7 @@ export default async function AdminContactRequestsPage({ searchParams }: PagePro
               {r.company && <span>{r.company}</span>}
               <span>{r.projectType}</span>
               <span>{r.budget}</span>
+              <span>{requestedPlanLabel(r.pricingCatalogId, catalogNameById)}</span>
             </div>
             <p className="mt-2 text-xs text-fg-subtle">{DATE_FORMAT.format(new Date(r.createdAt))}</p>
           </Link>

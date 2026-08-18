@@ -3,7 +3,9 @@ import type { NextRequest } from "next/server";
 import { chatTurnSchema } from "@/lib/validation";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
 import { isAIConfigured, completeChat, type AIMessage } from "@/lib/ai/provider";
-import { buildSystemPrompt } from "@/lib/ai/knowledge";
+import { buildSystemPrompt, type CommercialKnowledge } from "@/lib/ai/knowledge";
+import { GET_OFFICIAL_PRICE_TOOL, executeToolCall, type PriceToolContext } from "@/lib/ai/tools";
+import { checkNumericGuard } from "@/lib/ai/numericGuard";
 import {
   computeLeadScore,
   deriveLeadStatus,
@@ -23,7 +25,12 @@ import { getPromotionById } from "@/lib/db/promotionStore";
 import { getEffectivePromotionStatus } from "@/lib/promotions/effectiveStatus";
 import { toPublicPromotion } from "@/lib/promotions/eligibility";
 import type { PublicPromotion } from "@/lib/promotions/types";
+import { getServiceBySlug, listServices } from "@/lib/db/servicesStore";
+import { listPricingCatalogItems } from "@/lib/db/pricingCatalogStore";
+import { resolveCommercialMarket, resolveDisplayCurrency } from "@/lib/pricing/commercialContext";
+import type { Service } from "@/lib/services/types";
 import type { ChatMessage, Conversation } from "@/lib/db/types";
+import type { OfficialPriceToolResult } from "@/lib/ai/tools";
 
 export const runtime = "nodejs";
 
@@ -48,6 +55,87 @@ async function resolveActivePromotion(promotionId: string | undefined): Promise<
   if (!promotion) return null;
   if (getEffectivePromotionStatus(promotion, new Date()) !== "active") return null;
   return toPublicPromotion(promotion);
+}
+
+/**
+ * Services Phase 3/6 — same "never trust the client's claim" discipline
+ * as resolveActivePromotion() above. A nonexistent or unpublished slug
+ * resolves to `null`, indistinguishable from "no serviceSlug was sent at
+ * all" — never produces a false attribution. Returns the full Service
+ * (not just the slug) since Phase 6 also uses this to inject the
+ * "CURRENT SERVICE PAGE" block into the prompt — one resolution function,
+ * two callers (attribution + knowledge), never two separate lookups.
+ */
+async function resolveActiveService(serviceSlug: string | undefined): Promise<Service | null> {
+  if (!serviceSlug) return null;
+  const service = await getServiceBySlug(serviceSlug);
+  if (!service || !service.isPublished) return null;
+  return service;
+}
+
+type ChatTurnOutcome =
+  | { ok: true; content: string; authorizedAmounts: number[] }
+  | { ok: false; reason: "not_configured" | "request_failed"; detail?: string };
+
+/**
+ * International Pricing Phase E — XAYVEN AI. Runs one full turn against
+ * the provider, including AT MOST ONE round of tool calls for
+ * get_official_price — not an open-ended agent loop. The second
+ * completion (only made if the first asked for a tool) is called WITHOUT
+ * `tools`, so the model cannot request a further tool call even if it
+ * wanted to; it must answer in prose once the tool result is in front of
+ * it. `toolContext.market`/`toolContext.displayCurrency` are resolved by
+ * the caller BEFORE this runs and never change during it — the model has
+ * no way to influence either, since the tool's own parameters (see
+ * lib/ai/tools.ts) don't accept them at all.
+ *
+ * Returns `authorizedAmounts` — every officialAmount/displayAmount an
+ * executed tool call actually returned this turn — for the numeric guard
+ * (CAPA 2, see lib/ai/numericGuard.ts) to check the final reply against.
+ */
+async function runChatTurn(messages: AIMessage[], toolContext: PriceToolContext): Promise<ChatTurnOutcome> {
+  const first = await completeChat(messages, { tools: [GET_OFFICIAL_PRICE_TOOL] });
+  if (!first.ok) return first;
+
+  if (!first.toolCalls || first.toolCalls.length === 0) {
+    if (!first.content) return { ok: false, reason: "request_failed", detail: "empty_response" };
+    return { ok: true, content: first.content, authorizedAmounts: [] };
+  }
+
+  const toolResults = await Promise.all(
+    first.toolCalls.map(async (toolCall) => ({
+      toolCall,
+      resultJson: await executeToolCall(toolCall, toolContext),
+    }))
+  );
+
+  const authorizedAmounts: number[] = [];
+  for (const { resultJson } of toolResults) {
+    try {
+      const parsed = JSON.parse(resultJson) as Partial<OfficialPriceToolResult>;
+      if (typeof parsed.officialAmount === "number") authorizedAmounts.push(parsed.officialAmount);
+      if (typeof parsed.displayAmount === "number") authorizedAmounts.push(parsed.displayAmount);
+    } catch {
+      // executeToolCall() always returns valid JSON — this is defensive
+      // only, never expected to actually trigger.
+    }
+  }
+
+  const followUpMessages: AIMessage[] = [
+    ...messages,
+    { role: "assistant", content: first.content, tool_calls: first.toolCalls },
+    ...toolResults.map(({ toolCall, resultJson }) => ({
+      role: "tool" as const,
+      content: resultJson,
+      tool_call_id: toolCall.id,
+    })),
+  ];
+
+  const second = await completeChat(followUpMessages);
+  if (!second.ok) return second;
+  if (!second.content) return { ok: false, reason: "request_failed", detail: "empty_response" };
+
+  return { ok: true, content: second.content, authorizedAmounts };
 }
 
 /**
@@ -79,7 +167,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "validation_failed" }, { status: 400 });
   }
 
-  const { sessionId, message, locale: rawLocale, promotionId } = parsed.data;
+  const { sessionId, message, locale: rawLocale, promotionId, serviceSlug } = parsed.data;
   const locale = hasLocale(rawLocale) ? rawLocale : "es";
 
   const ip = getClientIp(request);
@@ -126,23 +214,57 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Re-resolved on EVERY turn (not cached from the attribution step above)
-  // so the model only ever gets shown a promotion that's still genuinely
-  // active right now — a promotion attributed on turn 1 that got paused/
-  // archived before turn 3 simply stops appearing in the prompt from then
-  // on, while conversation.promotionId itself (the historical fact of
-  // where this lead came from, for Analytics) is never touched.
-  const activePromotion = await resolveActivePromotion(conversation.promotionId ?? undefined);
+  // Services Phase 3 — same first-touch, sticky attribution rule as
+  // promotionId above, independent field (a conversation could in theory
+  // carry both if the visitor somehow triggered both handoffs, though
+  // ChatWidget only ever fires one per open). Re-validated here, not
+  // trusted from the client.
+  if (serviceSlug && !conversation.servicePageSlug) {
+    const attributed = await resolveActiveService(serviceSlug);
+    if (attributed) {
+      conversation = { ...conversation, servicePageSlug: attributed.slug };
+    }
+  }
 
-  const systemPrompt = buildSystemPrompt(dict, locale, activePromotion);
+  // Re-resolved on EVERY turn (not cached from the attribution step above)
+  // so the model only ever gets shown a promotion/service that's still
+  // genuinely active/published right now — one attributed on turn 1 that
+  // got paused/unpublished before turn 3 simply stops appearing in the
+  // prompt from then on, while conversation.promotionId/servicePageSlug
+  // themselves (the historical fact of where this lead came from, for
+  // Analytics) are never touched.
+  const activePromotion = await resolveActivePromotion(conversation.promotionId ?? undefined);
+  const activeService = await resolveActiveService(conversation.servicePageSlug ?? undefined);
+
+  // Services Phase 6 — real commercial data, fetched once per turn and
+  // handed to buildSystemPrompt() the same way activePromotion already
+  // is. Published services / active catalog items only — never leaks a
+  // draft/inactive item into what the model can state as fact.
+  const [services, packages] = await Promise.all([
+    listServices({ publishedOnly: true }),
+    listPricingCatalogItems({ activeOnly: true }),
+  ]);
+  const commercial: CommercialKnowledge = { services, packages, activeService };
+
+  const systemPrompt = buildSystemPrompt(dict, locale, activePromotion, commercial);
   const history: AIMessage[] = conversation.messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({
     role: m.role,
     content: m.content,
   }));
 
-  const result = await completeChat([{ role: "system", content: systemPrompt }, ...history]);
+  // International Pricing Phase E — resolved ONCE per turn, BEFORE the
+  // model is ever called, exactly like `market` already is for Services/
+  // Maintenance (see commercialContext.ts). The model never sees this
+  // resolution happen and never receives market/displayCurrency as
+  // something it can choose — only get_official_price's *result* reflects
+  // them (see lib/ai/tools.ts).
+  const { market } = await resolveCommercialMarket();
+  const { currency: displayCurrency } = await resolveDisplayCurrency(market);
+  const toolContext: PriceToolContext = { market, displayCurrency, locale };
 
-  if (!result.ok) {
+  const outcome = await runChatTurn([{ role: "system", content: systemPrompt }, ...history], toolContext);
+
+  if (!outcome.ok) {
     // Never lose the visitor's message even if the model call failed —
     // but this is a best-effort side write, not load-bearing for the
     // response below (which is already reporting the AI failure, the
@@ -155,11 +277,28 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error("[ai/chat] Failed to persist conversation after a failed AI call:", error);
     }
-    const status = result.reason === "not_configured" ? 503 : 502;
-    return NextResponse.json({ ok: false, error: result.reason }, { status });
+    const status = outcome.reason === "not_configured" ? 503 : 502;
+    return NextResponse.json({ ok: false, error: outcome.reason }, { status });
   }
 
-  const { reply, extracted, suggestedLeadStatus } = parseAIResponse(result.content);
+  const { reply, extracted, suggestedLeadStatus } = parseAIResponse(outcome.content);
+
+  // International Pricing Phase E — CAPA 2, anti-hallucination post-hoc
+  // check (see lib/ai/numericGuard.ts). Detection/logging only — never
+  // blocks, edits, or replaces the reply. `outcome.authorizedAmounts` is
+  // empty when no tool was called this turn, so ANY price-like number in
+  // a no-tool reply is flagged — exactly the "answered with a price
+  // without calling the tool" case CAPA 1 is supposed to prevent. `message`
+  // (the visitor's own text this turn) is passed so a number the model is
+  // only echoing back from the visitor (a stated budget, a quantity) isn't
+  // flagged as an unverified XAYVEN price — see numericGuard.ts's doc.
+  const numericGuard = checkNumericGuard(reply, outcome.authorizedAmounts, message);
+  if (numericGuard.flagged) {
+    console.warn("[ai/chat] numeric guard flagged possible unverified price(s) in AI reply", {
+      sessionId,
+      suspiciousMatches: numericGuard.suspiciousMatches,
+    });
+  }
 
   conversation = applyExtractedFields(conversation, extracted);
   conversation.messages = [

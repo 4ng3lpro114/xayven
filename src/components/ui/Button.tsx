@@ -19,6 +19,12 @@ interface ButtonAsLink extends SharedProps {
   href: string;
   target?: string;
   rel?: string;
+  /** Optional — fires before navigation. Only meaningful when this
+   *  Button is used from within an already-"use client" wrapper (e.g.
+   *  TrackedCtaLink.tsx); Server Components must never pass this
+   *  directly. Analytics Phase 7's one addition to this shared
+   *  component. */
+  onClick?: () => void;
 }
 
 interface ButtonAsButton
@@ -69,7 +75,7 @@ export function Button(props: ButtonProps) {
 
   if ("href" in props && props.href) {
     return (
-      <Link href={props.href} target={props.target} rel={props.rel} className={classes}>
+      <Link href={props.href} target={props.target} rel={props.rel} onClick={props.onClick} className={classes}>
         {content}
       </Link>
     );

@@ -55,6 +55,18 @@ export default async function ProtectedAdminLayout({
               <Link href="/admin/promotions" className="transition-colors hover:text-fg">
                 Promociones
               </Link>
+              <Link href="/admin/services" className="transition-colors hover:text-fg">
+                Servicios
+              </Link>
+              <Link href="/admin/packages" className="transition-colors hover:text-fg">
+                Paquetes
+              </Link>
+              <Link href="/admin/markets" className="transition-colors hover:text-fg">
+                Mercados
+              </Link>
+              <Link href="/admin/currency-config" className="transition-colors hover:text-fg">
+                Monedas
+              </Link>
               <Link
                 href="/admin/contact-requests"
                 className="inline-flex items-center gap-1.5 transition-colors hover:text-fg"

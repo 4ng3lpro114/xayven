@@ -97,6 +97,69 @@ describe("setPromotionContext / consumePromotionContext (Fase 11 Etapa A)", () =
   });
 });
 
+describe("setServiceContext / consumeServiceContext (Services Phase 3)", () => {
+  it("round-trip completo — lo que se guarda es exactamente lo que se consume", async () => {
+    vi.stubGlobal("window", makeFakeWindow());
+    const { setServiceContext, consumeServiceContext } = await import("../clientSession");
+
+    setServiceContext({ slug: "seo", message: "Quiero saber más sobre SEO." });
+    const result = consumeServiceContext();
+
+    expect(result).toEqual({ slug: "seo", message: "Quiero saber más sobre SEO." });
+  });
+
+  it("consumir es de un solo uso — la segunda llamada devuelve null", async () => {
+    vi.stubGlobal("window", makeFakeWindow());
+    const { setServiceContext, consumeServiceContext } = await import("../clientSession");
+
+    setServiceContext({ slug: "seo", message: "Hola" });
+    consumeServiceContext();
+    const second = consumeServiceContext();
+
+    expect(second).toBeNull();
+  });
+
+  it("nada guardado → null, nunca lanza", async () => {
+    vi.stubGlobal("window", makeFakeWindow());
+    const { consumeServiceContext } = await import("../clientSession");
+
+    expect(consumeServiceContext()).toBeNull();
+  });
+
+  it("JSON corrupto en sessionStorage → null, nunca lanza (defensivo, nunca confía en el storage)", async () => {
+    const fakeWindow = makeFakeWindow();
+    fakeWindow.sessionStorage.setItem("xayven_service_context", "{not valid json");
+    vi.stubGlobal("window", fakeWindow);
+    const { consumeServiceContext } = await import("../clientSession");
+
+    expect(consumeServiceContext()).toBeNull();
+  });
+
+  it("forma inesperada (falta slug o message) → null, nunca un objeto a medias", async () => {
+    const fakeWindow = makeFakeWindow();
+    fakeWindow.sessionStorage.setItem("xayven_service_context", JSON.stringify({ slug: "seo" }));
+    vi.stubGlobal("window", fakeWindow);
+    const { consumeServiceContext } = await import("../clientSession");
+
+    expect(consumeServiceContext()).toBeNull();
+  });
+
+  it("no usa la misma clave que setDiagnosisContext ni setPromotionContext — los tres handoffs nunca se pisan", async () => {
+    vi.stubGlobal("window", makeFakeWindow());
+    const { setDiagnosisContext, consumeDiagnosisContext } = await import("../clientSession");
+    const { setPromotionContext, consumePromotionContext } = await import("../clientSession");
+    const { setServiceContext, consumeServiceContext } = await import("../clientSession");
+
+    setDiagnosisContext("contexto de diagnóstico");
+    setPromotionContext({ promotionId: "promo-1", message: "contexto de promoción" });
+    setServiceContext({ slug: "seo", message: "contexto de servicio" });
+
+    expect(consumeDiagnosisContext()).toBe("contexto de diagnóstico");
+    expect(consumePromotionContext()).toEqual({ promotionId: "promo-1", message: "contexto de promoción" });
+    expect(consumeServiceContext()).toEqual({ slug: "seo", message: "contexto de servicio" });
+  });
+});
+
 describe("openChatWidget", () => {
   it("despacha el evento OPEN_CHAT_EVENT en window", async () => {
     const fakeWindow = makeFakeWindow();

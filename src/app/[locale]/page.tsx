@@ -44,7 +44,12 @@ export default async function HomePage({ params }: PageProps<"/[locale]">) {
       <ProcessPreview dict={dict} locale={locale} />
       <Capabilities dict={dict} />
       <TrustBuilding dict={dict} />
-      <FAQSection dict={dict} />
+      <FAQSection
+        eyebrow={dict.faq.eyebrow}
+        heading={dict.faq.heading}
+        description={dict.faq.description}
+        items={dict.faq.items}
+      />
       <FinalCTA dict={dict} locale={locale} />
     </>
   );

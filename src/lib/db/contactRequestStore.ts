@@ -36,6 +36,7 @@ interface ContactRequestRow {
   status: ContactRequest["status"];
   client_id: string | null;
   client_was_created: boolean | null;
+  pricing_catalog_id: string | null;
 }
 
 function rowToContactRequest(row: ContactRequestRow): ContactRequest {
@@ -51,11 +52,20 @@ function rowToContactRequest(row: ContactRequestRow): ContactRequest {
     status: row.status,
     clientId: row.client_id,
     clientWasCreated: row.client_was_created,
+    pricingCatalogId: row.pricing_catalog_id,
   };
 }
 
 export async function createContactRequest(
-  input: Omit<ContactRequest, "id" | "createdAt" | "status" | "clientId" | "clientWasCreated">
+  input: Omit<
+    ContactRequest,
+    "id" | "createdAt" | "status" | "clientId" | "clientWasCreated" | "pricingCatalogId"
+  > & {
+    /** Optional — omitted entirely by every caller that predates Fase 2
+     *  (Pricing Core → Project Request). Defaults to `null`, the exact
+     *  same "no plan selected" state Flujo B/C submissions get today. */
+    pricingCatalogId?: string | null;
+  }
 ): Promise<ContactRequest> {
   const supabase = getSupabaseAdmin();
   const draft: ContactRequest = {
@@ -64,6 +74,7 @@ export async function createContactRequest(
     status: "new",
     clientId: null,
     clientWasCreated: null,
+    pricingCatalogId: null,
     ...input,
   };
 
@@ -83,6 +94,7 @@ export async function createContactRequest(
       budget: draft.budget,
       message: draft.message,
       status: draft.status,
+      pricing_catalog_id: draft.pricingCatalogId,
     })
     .select("*")
     .single();
@@ -259,15 +271,16 @@ export function nullifyClientIdInContactRequestsMemory(clientId: string): void {
  * Permanent deletion of a contact request — mirrors
  * conversationStore.ts's deleteConversation() exactly (same "never fall
  * back to memory on a real Supabase error" discipline, same `{ deleted }`
- * shape). Unlike deleteConversation()/deleteClient(), there is no
- * protection check here and none is needed: `contact_requests.client_id`
- * is a child reference INTO `clients` (`contact_requests.client_id ->
- * clients.id`), never the other way around, so deleting a contact request
- * row can never cascade into — or otherwise touch — `clients`,
- * `projects`, `payments`, or `conversations`. This is the ONLY sanctioned
- * way to delete a contact request; the DELETE
- * /api/admin/contact-requests/[id] route never issues raw SQL/Supabase
- * calls of its own.
+ * shape). `contact_requests.client_id` is a child reference INTO `clients`
+ * (`contact_requests.client_id -> clients.id`), never the other way
+ * around, so deleting a contact request row can never cascade into — or
+ * otherwise touch — `clients`, `payments`, or `conversations`.
+ *
+ * NOTE: a separate, not-yet-merged "Project Proposals" effort would add a
+ * `project_proposals.request_id` FK with `ON DELETE CASCADE` — if/when
+ * that work is resumed, this function (or its caller) will need a guard
+ * against deleting a request with an accepted proposal. Not relevant
+ * today: that table doesn't exist in this codebase yet.
  */
 export async function deleteContactRequest(id: string): Promise<{ deleted: boolean }> {
   const supabase = getSupabaseAdmin();

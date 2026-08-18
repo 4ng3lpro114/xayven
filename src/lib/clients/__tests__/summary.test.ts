@@ -35,6 +35,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     clientId: "client-1",
     convertedAt: null,
     promotionId: null,
+    servicePageSlug: null,
     visitorName: null,
     visitorEmail: null,
     visitorPhone: null,
@@ -82,6 +83,7 @@ function makeContactRequest(overrides: Partial<ContactRequest> = {}): ContactReq
     status: "converted",
     clientId: "client-1",
     clientWasCreated: true,
+    pricingCatalogId: null,
     ...overrides,
   };
 }

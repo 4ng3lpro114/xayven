@@ -65,44 +65,20 @@ export const en: Dictionary = {
     description:
       "We don't sell hours of code. We sell strategy, design and development working together to get you results.",
     ctaLabel: "See all services",
-    fieldLabels: { who: "Who it's for", problem: "Problem", outcome: "Outcome" },
-    items: [
-      {
-        title: "Web design & development",
-        summary: "Professional websites, designed and built from scratch for your brand.",
-        who: "Businesses that need a new website or a full redesign.",
-        problem: "A website that doesn't reflect the real quality of your business — or none at all.",
-        outcome: "A fast, clear site that builds trust from the first click.",
-      },
-      {
-        title: "Online stores",
-        summary: "Ecommerce with catalog, orders and a simple shopping experience.",
-        who: "Businesses that sell products and want to sell online too.",
-        problem: "No digital sales channel — or one that doesn't convert.",
-        outcome: "An easy-to-use store, with catalog, checkout and simple management.",
-      },
-      {
-        title: "Landing pages & campaigns",
-        summary: "Pages focused on a single goal, ready in days.",
-        who: "Businesses launching a product, promotion, or specific service.",
-        problem: "You need a page you can launch fast, without building a full site.",
-        outcome: "A conversion-optimized landing page, ready for your next campaign.",
-      },
-      {
-        title: "Digital identity & SEO",
-        summary: "Digital branding and the technical foundations to get found on Google.",
-        who: "Brands that are just starting out or need visual consistency and visibility.",
-        problem: "No clear identity, or close to invisible in search results.",
-        outcome: "A coherent digital brand, with technical SEO done right from the start.",
-      },
-      {
-        title: "Maintenance & optimization",
-        summary: "Ongoing support so your site keeps working and improving.",
-        who: "Businesses that already have a website and need it kept up to date.",
-        problem: "Abandoned, slow, or outdated sites.",
-        outcome: "A site that stays fast, secure and current over time.",
-      },
-    ],
+    // Services Phase 10 (QA/dead-code cleanup) — `items`/`fieldLabels`
+    // (legacy content for 5 services different from the real ones)
+    // removed: since Services Phase 6, XAYVEN AI also reads
+    // servicesStore.ts — these were left with zero real consumers,
+    // confirmed by exhaustive grep before removal. Each service's real
+    // content lives in servicesStore.ts.
+    viewService: "View service",
+    priceFrom: "From",
+    priceQuote: "Custom quote",
+    aiHelp: {
+      heading: "Not sure which service you need?",
+      description: "Tell XAYVEN AI about your situation and it'll help you identify the right service.",
+      cta: "Talk to XAYVEN AI",
+    },
   },
   why: {
     eyebrow: "Why XAYVEN",
@@ -135,6 +111,36 @@ export const en: Dictionary = {
         description: "You talk to the people building your project, not a sales layer.",
       },
     ],
+  },
+  // Services Phase 3 — /services/[slug]. Generic UI copy/section labels
+  // shared across every service detail page; the actual editorial
+  // content (heading, definition, problem, solution, includes, forWhom,
+  // useCases, faq) lives per-service in servicesStore.ts, never here.
+  serviceDetail: {
+    definitionHeading: "What is it?",
+    problemHeading: "The problem",
+    solutionHeading: "The XAYVEN approach",
+    includesHeading: "What's included",
+    forWhomHeading: "Who it's for",
+    idealIfLabel: "Ideal if...",
+    notIdealIfLabel: "May not be the right fit if...",
+    useCasesHeading: "Use cases",
+    workLinkLabel: "See real projects",
+    pricingHeading: "Pricing",
+    priceQuoteExplanation: "This service doesn't have a closed package — it's quoted based on your project's real scope.",
+    processHeading: "How we work",
+    processDescription: "The same process for every XAYVEN service — design, development and strategy under one team.",
+    processLinkLabel: "See the full process",
+    faqHeading: "Frequently asked questions",
+    faqDescription: "What we get asked most about this service.",
+    relatedHeading: "Other services",
+    choosePackageLabel: "Choose this package",
+    // SEO/AEO/GEO Phase 8 — explicit internal linking (master prompt
+    // §39): Maintenance and Diagnosis, neither linked from the service
+    // detail page until this phase.
+    exploreMoreHeading: "Explore more",
+    maintenanceLinkLabel: "Already have a website? See Maintenance",
+    diagnosisLinkLabel: "Not sure what you need? Take the diagnosis",
   },
   work: {
     eyebrow: "Selected work",
@@ -344,6 +350,8 @@ export const en: Dictionary = {
       requiredError: "This field is required.",
       emailError: "Enter a valid email address.",
       minLengthError: "Tell us a bit more — at least 20 characters.",
+      selectedPlanLabel: "Selected plan",
+      changePlanLabel: "Remove",
     },
   },
   footer: {
@@ -396,6 +404,10 @@ export const en: Dictionary = {
   },
   skipToContent: "Skip to content",
 
+  pricing: {
+    displayCurrencyLabel: "Show prices in",
+  },
+
   ai: {
     name: "XAYVEN AI",
     greeting:
@@ -433,45 +445,92 @@ export const en: Dictionary = {
     eyebrow: "Maintenance",
     heading: "Your website doesn't end when we launch it.",
     description: "We keep it fast, secure and up to date so you can focus on your business.",
+    // Services/Maintenance Phase 4 — `slug` references pricing_catalog
+    // (same "slug is the stable reference" principle already used by
+    // Services). `priceLabel` removed from here — the real price is
+    // resolved in the page against Pricing Core, never hardcoded.
     plans: [
       {
+        slug: "essential",
         name: "Essential",
         tagline: "The basics, well taken care of.",
         who: "For live sites that need to keep running without surprises.",
-        features: [
-          "Technical and security updates",
-          "Uptime monitoring",
-          "Regular backups",
-          "Email support",
-        ],
-        priceLabel: "Get a quote",
       },
       {
+        slug: "growth",
         name: "Growth",
         tagline: "Maintenance with continuous improvement.",
         who: "For businesses that want their site to keep improving, not just stay standing.",
-        features: [
-          "Everything in Essential",
-          "Regular content updates",
-          "Speed optimization",
-          "Recurring basic SEO review",
-        ],
-        priceLabel: "Get a quote",
       },
       {
+        slug: "care-plus",
         name: "Care+",
         tagline: "Close, hands-on support.",
         who: "For businesses that want a technical team on call, without hiring one.",
-        features: [
-          "Everything in Growth",
-          "Priority response",
-          "New sections or small features",
-          "Recurring strategic check-ins",
-        ],
-        priceLabel: "Get a quote",
       },
     ],
+    perMonthSuffix: "/mo",
+    priceUnavailable: "Get a quote",
     ctaLabel: "Request maintenance",
+    about: {
+      whatHeading: "What is XAYVEN Maintenance?",
+      whatBody:
+        "It's the ongoing maintenance service for sites already built by XAYVEN (or adopted by XAYVEN): hosting, security, updates and support so the site keeps working without you having to think about it.",
+      whyHeading: "Why does it exist?",
+      whyBody:
+        "A website doesn't end the day it launches — it needs updates, backups, monitoring and constant adjustments. XAYVEN Maintenance exists so that responsibility never falls on you.",
+      problemsHeading: "What problems it solves",
+      problems: [
+        "Abandoned sites that stop receiving security updates.",
+        "Nobody answers when something breaks or the site goes down.",
+        "Outdated content because there's no simple way to request changes.",
+        "Zero visibility into how the site is actually performing.",
+      ],
+    },
+    comparisonHeading: "Plan comparison",
+    comparisonNote: "All three plans share Essential's base — Growth and Care+ add capacity and priority, they don't replace it.",
+    comparisonPriceRow: "Price",
+    comparisonWhoRow: "Who it's for",
+    comparisonIncludesRow: "Includes",
+    faq: {
+      eyebrow: "Maintenance",
+      heading: "Frequently asked questions",
+      description: "What we get asked most about the maintenance plans.",
+      items: [
+        {
+          question: "What's the difference between Essential, Growth and Care+?",
+          answer:
+            "Essential keeps your site running (updates, monitoring, backups, email support). Growth adds regular content changes, optimization and a recurring SEO review. Care+ adds priority response, small new sections and strategic check-ins.",
+        },
+        {
+          question: "Can I change plans later?",
+          answer: "Yes — you can request a plan change by messaging us or through the form on this same page.",
+        },
+        {
+          question: "Does my site need to have been built by XAYVEN?",
+          answer: "Ideally yes, but XAYVEN can evaluate existing third-party sites case by case.",
+        },
+        {
+          question: "What happens if I don't have any maintenance plan?",
+          answer:
+            "Your site keeps running, but without updates, backups or active XAYVEN support — any security issue, downtime or outdated content is on you.",
+        },
+        {
+          question: "Does maintenance include large redesigns or new features?",
+          answer:
+            "No — large changes are quoted separately, as a project. Maintenance covers continuity, minor changes and ongoing improvement depending on the plan.",
+        },
+        {
+          question: "How do I get started?",
+          answer: "Fill out the form on this page or tell XAYVEN AI which plan you're interested in.",
+        },
+      ],
+    },
+    aiHelp: {
+      heading: "Have questions about maintenance?",
+      description: "Tell XAYVEN AI about your situation and it'll help you identify the right plan.",
+      cta: "Talk to XAYVEN AI",
+    },
     form: {
       heading: "Tell us about your website",
       description: "Fill out this form and we'll reach out with next steps.",
