@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/db/supabase";
 import { getGlobalArray } from "@/lib/db/memoryStore";
+import { logMaintenanceEvent } from "@/lib/maintenance/log";
 import type { MaintenanceRequest } from "@/lib/db/types";
 
 const memoryStore = getGlobalArray<MaintenanceRequest>("maintenanceRequests");
@@ -46,7 +47,16 @@ export async function createMaintenanceRequest(
 
   if (error) {
     // Fail open — the visitor still gets a success state, we just keep a
-    // local copy so it isn't silently lost.
+    // local copy so it isn't silently lost. XAYVEN CORE Phase 3.3: this
+    // branch previously had NO logging at all — a configured Supabase
+    // write failing here was completely invisible in production logs,
+    // the exact "silent" gap the Phase 3.3 audit found. The record itself
+    // was never at risk (the in-memory fallback above already guarantees
+    // that), only the admin's ability to ever notice this was happening.
+    logMaintenanceEvent("MAINTENANCE_PERSIST_FALLBACK", {
+      id: record.id,
+      message: error.message,
+    });
     memoryStore.unshift(record);
   }
 

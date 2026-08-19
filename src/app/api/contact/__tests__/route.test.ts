@@ -60,6 +60,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
+/** Structural, version-agnostic over vi.fn's exact generic shape — every
+ *  fetch mock in this file only ever needs its `[url, init]` call args. */
+function requestBody(fetchMock: { mock: { calls: unknown[][] } }, callIndex = 0): Record<string, unknown> {
+  const call = fetchMock.mock.calls[callIndex] as [string, RequestInit];
+  return JSON.parse(call[1].body as string);
+}
+
 describe("POST /api/contact", () => {
   beforeEach(() => {
     delete process.env.RESEND_API_KEY;
@@ -105,10 +112,8 @@ describe("POST /api/contact", () => {
   it("A2. envío válido, Resend responde éxito → persisted:true, emailSent:true", async () => {
     process.env.RESEND_API_KEY = "test-key";
     process.env.CONTACT_EMAIL_TO = "admin@example.com";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => jsonResponse({ id: "email-id-123" }))
-    );
+    const fetchMock = vi.fn(async () => jsonResponse({ id: "email-id-123" }));
+    vi.stubGlobal("fetch", fetchMock);
 
     const payload = makePayload();
     const res = await POST(makeRequest(payload));
@@ -116,7 +121,20 @@ describe("POST /api/contact", () => {
     expect(await res.json()).toMatchObject({ ok: true, persisted: true, emailSent: true });
 
     const all = await listContactRequests();
-    expect(all.some((r) => r.email === payload.email)).toBe(true);
+    const saved = all.find((r) => r.email === payload.email);
+    expect(saved).toBeDefined();
+
+    // XAYVEN CORE Phase 3.3 — the notification must carry the extra
+    // context that was already being captured/persisted but never
+    // surfaced before this phase: mercado, moneda mostrada, referencia,
+    // and a direct link to the record in Admin.
+    const sentBody = requestBody(fetchMock);
+    expect(sentBody.reply_to).toBe(payload.email);
+    expect(sentBody.text).toContain(`Mercado: ${DEFAULT_TEST_MARKET.code}`);
+    expect(sentBody.text).toContain("Moneda mostrada: COP");
+    expect(sentBody.text).toContain("Precio oficial: —");
+    expect(sentBody.text).toContain(`Referencia: ${saved?.id}`);
+    expect(sentBody.text).toContain(`/admin/contact-requests/${saved?.id}`);
   });
 
   it("B. envío válido, Resend responde error → la solicitud sigue guardada, emailSent:false", async () => {

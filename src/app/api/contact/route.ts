@@ -8,6 +8,9 @@ import { logContactEvent } from "@/lib/contact/log";
 import { resolveCommercialMarket, resolveDisplayCurrency } from "@/lib/pricing/commercialContext";
 import { resolveOfficialPrice } from "@/lib/pricing/resolveOfficialPrice";
 import { withDisplayPrice } from "@/lib/pricing/displayPrice";
+import { sendEmail } from "@/lib/email/send";
+import { formatMoney } from "@/lib/payments/format";
+import { SITE_URL } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
@@ -130,55 +133,54 @@ export async function POST(request: NextRequest) {
 
   logContactEvent("CONTACT_PERSISTED", { email: data.email });
 
-  const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.CONTACT_EMAIL_TO;
-  const from = process.env.CONTACT_EMAIL_FROM ?? "XAYVEN <onboarding@resend.dev>";
-
-  if (!apiKey || !to) {
+  if (!to) {
     logContactEvent("CONTACT_EMAIL_FAILED", { reason: "not_configured" });
     return NextResponse.json({ ok: true, persisted: true, emailSent: false });
   }
 
-  try {
-    const emailRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        reply_to: data.email,
-        subject: `Nuevo contacto — ${data.name}${data.company ? ` (${data.company})` : ""}`,
-        text: [
-          `Nombre: ${data.name}`,
-          `Email: ${data.email}`,
-          `Empresa: ${data.company || "—"}`,
-          `Tipo de proyecto: ${data.projectType}`,
-          `Presupuesto: ${data.budget}`,
-          `Fecha/hora de recepción: ${new Date(contactRequest.createdAt).toLocaleString("es-CO")}`,
-          "",
-          "Mensaje:",
-          data.message,
-        ].join("\n"),
-      }),
+  // XAYVEN CORE Phase 3.3 — enriched with fields that were already
+  // captured/persisted above (market, display currency, official price
+  // when one resolved, the request's own id) but never surfaced in the
+  // notification before this phase. Nothing here is invented: every line
+  // reads straight off `contactRequest`/`market`/`displayCurrency`.
+  const result = await sendEmail({
+    to,
+    replyTo: data.email,
+    subject: `Nuevo contacto — ${data.name}${data.company ? ` (${data.company})` : ""}`,
+    text: [
+      `Nombre: ${data.name}`,
+      `Email: ${data.email}`,
+      `Empresa: ${data.company || "—"}`,
+      `Tipo de proyecto: ${data.projectType}`,
+      `Presupuesto: ${data.budget}`,
+      `Mercado: ${market.code}`,
+      `Moneda mostrada: ${displayCurrency}`,
+      `Precio oficial: ${officialAmount !== null && officialCurrency ? formatMoney(officialAmount, officialCurrency) : "—"}`,
+      `Referencia: ${contactRequest.id}`,
+      `Fecha/hora de recepción: ${new Date(contactRequest.createdAt).toLocaleString("es-CO")}`,
+      "",
+      "Mensaje:",
+      data.message,
+      "",
+      `Ver en Admin: ${SITE_URL}/admin/contact-requests/${contactRequest.id}`,
+    ].join("\n"),
+  });
+
+  if (!result.ok) {
+    logContactEvent("CONTACT_EMAIL_FAILED", {
+      reason: result.reason === "provider_error" ? "resend_error" : result.reason,
     });
-
-    if (!emailRes.ok) {
-      const errText = await emailRes.text();
-      logContactEvent("CONTACT_EMAIL_FAILED", { reason: "resend_error", status: emailRes.status });
-      console.error("[contact] Resend API error:", errText);
-      // The request is already persisted above — a delivery-only failure
-      // must never be reported as if the request itself was lost.
-      return NextResponse.json({ ok: true, persisted: true, emailSent: false });
+    if (result.reason === "provider_error") {
+      console.error("[contact] Resend API error:", result.detail);
+    } else if (result.reason === "unexpected_error") {
+      console.error("[contact] Unexpected error sending email:", result.detail);
     }
-
-    logContactEvent("CONTACT_EMAIL_SENT", { email: data.email });
-    return NextResponse.json({ ok: true, persisted: true, emailSent: true });
-  } catch (error) {
-    logContactEvent("CONTACT_EMAIL_FAILED", { reason: "unexpected_error" });
-    console.error("[contact] Unexpected error sending email:", error);
+    // The request is already persisted above — a delivery-only failure
+    // must never be reported as if the request itself was lost.
     return NextResponse.json({ ok: true, persisted: true, emailSent: false });
   }
+
+  logContactEvent("CONTACT_EMAIL_SENT", { email: data.email });
+  return NextResponse.json({ ok: true, persisted: true, emailSent: true });
 }

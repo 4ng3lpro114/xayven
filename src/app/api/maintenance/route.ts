@@ -4,6 +4,9 @@ import { maintenanceSchema } from "@/lib/validation";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
 import { createMaintenanceRequest } from "@/lib/db/maintenanceStore";
 import { getClientByNormalizedEmail } from "@/lib/db/paymentsStore";
+import { sendEmail } from "@/lib/email/send";
+import { logMaintenanceEvent } from "@/lib/maintenance/log";
+import { SITE_URL } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
@@ -23,6 +26,25 @@ export const runtime = "nodejs";
  * never block or fail the actual submission — any recoverable failure
  * (Supabase hiccup, etc.) just leaves clientId null, exactly like "no
  * match found".
+ *
+ * XAYVEN CORE Phase 3.3 (Communication Audit) — three changes, all
+ * response-shape/observability, zero business logic touched:
+ *   1. `createMaintenanceRequest` is now wrapped in try/catch. In
+ *      practice this store never throws under a configured-Supabase
+ *      write failure (it fails open to memory instead — see
+ *      maintenanceStore.ts, which now also logs that fallback, the real
+ *      gap the audit found). This try/catch is deliberately defensive
+ *      for the genuinely-unexpected case (not a behavior change to the
+ *      store's own fail-open design), and brings this route's shape in
+ *      line with /api/contact's `persist_failed` handling.
+ *   2. The response contract now matches /api/contact's exactly —
+ *      `{ ok, persisted, emailSent }` instead of the old `{ ok,
+ *      delivered }`. Confirmed safe: MaintenanceForm.tsx (the only
+ *      consumer) only ever reads `res.ok`, never the old `delivered`
+ *      field, so this is not a breaking change to the public form.
+ *   3. The admin notification email now includes status and
+ *      client-match info (both already persisted, neither invented) and
+ *      a direct link to the record in /admin/maintenance.
  */
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -52,6 +74,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  logMaintenanceEvent("MAINTENANCE_RECEIVED", { email: data.email });
+
   let clientId: string | null = null;
   try {
     const normalizedEmail = data.email.trim().toLowerCase();
@@ -63,69 +87,73 @@ export async function POST(request: NextRequest) {
     console.error("[maintenance] Client lookup failed (non-blocking):", error);
   }
 
-  const record = await createMaintenanceRequest({
-    name: data.name,
-    email: data.email,
-    company: data.company || null,
-    website: data.website,
-    need: data.need,
-    priority: data.priority,
-    message: data.message,
-    clientId,
-  });
-
-  const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.CONTACT_EMAIL_TO;
-  const from = process.env.CONTACT_EMAIL_FROM ?? "XAYVEN <onboarding@resend.dev>";
-
-  if (!apiKey || !to) {
-    console.info("[maintenance] Received request (email delivery not configured):", {
-      id: record.id,
+  let record: Awaited<ReturnType<typeof createMaintenanceRequest>>;
+  try {
+    record = await createMaintenanceRequest({
       name: data.name,
       email: data.email,
+      company: data.company || null,
+      website: data.website,
       need: data.need,
       priority: data.priority,
+      message: data.message,
+      clientId,
     });
-    return NextResponse.json({ ok: true, delivered: false });
-  }
-
-  try {
-    const emailRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        reply_to: data.email,
-        subject: `Mantenimiento — ${data.name}${data.company ? ` (${data.company})` : ""}`,
-        text: [
-          `Nombre: ${data.name}`,
-          `Email: ${data.email}`,
-          `Empresa: ${data.company || "—"}`,
-          `Web: ${data.website}`,
-          `Necesidad: ${data.need}`,
-          `Prioridad: ${data.priority}`,
-          "",
-          "Mensaje:",
-          data.message,
-        ].join("\n"),
-      }),
-    });
-
-    if (!emailRes.ok) {
-      const errText = await emailRes.text();
-      console.error("[maintenance] Resend API error:", errText);
-      // The request is already persisted above, so this is a delivery-only
-      // failure — still tell the visitor it was received.
-      return NextResponse.json({ ok: true, delivered: false });
-    }
-
-    return NextResponse.json({ ok: true, delivered: true });
   } catch (error) {
-    console.error("[maintenance] Unexpected error sending email:", error);
-    return NextResponse.json({ ok: true, delivered: false });
+    // maintenanceStore.createMaintenanceRequest() fails open to memory on
+    // a Supabase write error and does not throw for that case — this
+    // branch is defensive coverage for a genuinely unexpected failure
+    // (e.g. the store itself throwing), mirroring /api/contact's
+    // persist_failed handling rather than letting an uncaught exception
+    // fall through to a generic framework 500.
+    logMaintenanceEvent("MAINTENANCE_INTERNAL_ERROR", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json({ ok: false, error: "persist_failed" }, { status: 500 });
   }
+
+  logMaintenanceEvent("MAINTENANCE_PERSISTED", { id: record.id, email: data.email });
+
+  const adminTo = process.env.CONTACT_EMAIL_TO;
+  if (!adminTo) {
+    logMaintenanceEvent("MAINTENANCE_EMAIL_FAILED", { reason: "not_configured" });
+    return NextResponse.json({ ok: true, persisted: true, emailSent: false });
+  }
+
+  const result = await sendEmail({
+    to: adminTo,
+    replyTo: data.email,
+    subject: `Mantenimiento — ${data.name}${data.company ? ` (${data.company})` : ""}`,
+    text: [
+      `Nombre: ${data.name}`,
+      `Email: ${data.email}`,
+      `Empresa: ${data.company || "—"}`,
+      `Web: ${data.website}`,
+      `Necesidad: ${data.need}`,
+      `Prioridad: ${data.priority}`,
+      `Estado: ${record.status}`,
+      `Cliente existente: ${record.clientId ? "sí" : "no"}`,
+      `Referencia: ${record.id}`,
+      "",
+      "Mensaje:",
+      data.message,
+      "",
+      `Ver en Admin: ${SITE_URL}/admin/maintenance/${record.id}`,
+    ].join("\n"),
+  });
+
+  if (!result.ok) {
+    logMaintenanceEvent("MAINTENANCE_EMAIL_FAILED", { reason: result.reason });
+    if (result.reason === "provider_error") {
+      console.error("[maintenance] Resend API error:", result.detail);
+    } else if (result.reason === "unexpected_error") {
+      console.error("[maintenance] Unexpected error sending email:", result.detail);
+    }
+    // The request is already persisted above — a delivery-only failure
+    // must never be reported as if the request itself was lost.
+    return NextResponse.json({ ok: true, persisted: true, emailSent: false });
+  }
+
+  logMaintenanceEvent("MAINTENANCE_EMAIL_SENT", { id: record.id });
+  return NextResponse.json({ ok: true, persisted: true, emailSent: true });
 }
