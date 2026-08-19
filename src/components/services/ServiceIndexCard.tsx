@@ -24,19 +24,27 @@ interface ServiceIndexCardProps {
  * links to the service's detail page instead of showing the old
  * who/problem/outcome triplet inline, and surfaces a Pricing-Core-derived
  * price instead of none.
+ *
+ * XAYVEN CORE Phase 3.2B (UI visual polish): structure and content
+ * untouched — only the resting/hover treatment was brought in line with
+ * ProjectCover/MaintenancePlanCard's shared signature (`shadow-soft` at
+ * rest → `shadow-glow-sm` + accent border on hover), plus the icon tile
+ * now brightens to `bg-overlay` on hover (that token's own documented
+ * purpose is exactly "hover surfaces"). Same family, same language, no
+ * new card variant.
  */
 export function ServiceIndexCard({ href, icon: Icon, heading, tagline, priceLabel, viewLabel, delay = 0 }: ServiceIndexCardProps) {
   return (
     <Reveal delay={delay} className="h-full">
       <Link
         href={href}
-        className="group flex h-full flex-col rounded-lg border border-border bg-bg-raised p-6 transition-colors duration-300 hover:border-border-accent"
+        className="group flex h-full flex-col rounded-lg border border-border bg-bg-raised p-6 shadow-soft transition-[border-color,box-shadow] duration-300 hover:border-border-accent hover:shadow-glow-sm"
       >
-        <div className="flex size-11 items-center justify-center rounded-md border border-border-strong bg-bg-elevated text-accent-400 transition-colors group-hover:border-border-accent">
+        <div className="flex size-11 items-center justify-center rounded-md border border-border-strong bg-bg-elevated text-accent-400 transition-colors duration-300 group-hover:border-border-accent group-hover:bg-bg-overlay">
           <Icon className="size-5" aria-hidden="true" />
         </div>
         <h3 className="mt-5 text-lg font-semibold text-fg">{heading}</h3>
-        <p className="mt-2 text-sm text-fg-muted">{tagline}</p>
+        <p className="mt-2 text-sm leading-relaxed text-fg-muted">{tagline}</p>
 
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-5 text-sm">
           <span className="font-mono text-[0.68rem] uppercase tracking-[0.1em] text-fg-subtle">{priceLabel}</span>
