@@ -214,6 +214,38 @@ export async function deleteClient(id: string): Promise<{ deleted: boolean }> {
 }
 
 /**
+ * XAYVEN CORE Phase 3.0 (Email Lookup Hardening) — escapes the three
+ * characters Postgres's LIKE/ILIKE grammar treats specially so a value
+ * passed to `.ilike()` is matched LITERALLY, never as a pattern:
+ *   `%` — matches any sequence of characters
+ *   `_` — matches any single character
+ *   `\` — the escape character itself (must be escaped first, or the
+ *         backslashes this function introduces for `%`/`_` would
+ *         themselves get mangled by a later pass)
+ *
+ * Order matters and is deliberate: backslash MUST be escaped before `%`/`_`
+ * — escaping it after would double the backslashes this function just
+ * introduced for `%`/`_`, corrupting the pattern instead of fixing it.
+ *
+ * Confirmed necessary against real production data (Phase 3.0 audit): a
+ * submitted email like `echeverriangel_8@gmail.com` — a DIFFERENT, non-
+ * existent address — previously matched the real client
+ * `echeverriangel98@gmail.com` under unescaped `.ilike()`, because `_` is
+ * a single-character wildcard, not a literal underscore. Escaping is the
+ * fix; the case-insensitivity `.ilike()` provides is still needed and
+ * kept — see getClientByNormalizedEmail() below, which still relies on it
+ * because no write path in this codebase currently guarantees
+ * `clients.email` is stored already-lowercased (confirmed in the Phase
+ * 3.0 audit: every write path is 🟡 at best).
+ *
+ * Pure function — no I/O, safe to unit-test in complete isolation from
+ * Supabase (see paymentsStore.escapeIlike.test.ts).
+ */
+export function escapeIlikeSpecialChars(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+/**
  * Case/whitespace-insensitive client lookup by email — backs the lead →
  * client conversion flow's find-before-create step (see
  * src/lib/leads/conversion.ts). `normalizedEmail` must already be
@@ -230,10 +262,19 @@ export async function getClientByNormalizedEmail(normalizedEmail: string): Promi
   }
 
   // `email` has no leading/trailing whitespace once written through this
-  // module (see createClientOrGetExisting below), so an ILIKE match against
-  // the already-normalized input is a correct case-insensitive equality
-  // check — not a substring search (no % wildcards are used).
-  const { data } = await supabase.from("clients").select("*").ilike("email", normalizedEmail).maybeSingle();
+  // module (see createClientOrGetExisting below), so an escaped ILIKE
+  // match against the already-normalized input is a correct
+  // case-insensitive EXACT equality check — never a pattern match. The
+  // escaping (Phase 3.0) is what makes "never a pattern match" actually
+  // true: `.ilike()` alone would treat a literal `%`/`_`/`\` in
+  // `normalizedEmail` as a wildcard/escape character, not as the literal
+  // character it is — see escapeIlikeSpecialChars() above for the
+  // confirmed-in-production false-positive this fixes.
+  const { data } = await supabase
+    .from("clients")
+    .select("*")
+    .ilike("email", escapeIlikeSpecialChars(normalizedEmail))
+    .maybeSingle();
   return data ? rowToClient(data as ClientRow) : null;
 }
 
