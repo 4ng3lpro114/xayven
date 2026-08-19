@@ -5,6 +5,9 @@ import { getClientIp, rateLimit } from "@/lib/rateLimit";
 import { createContactRequest } from "@/lib/db/contactRequestStore";
 import { getPricingCatalogItemBySlug } from "@/lib/db/pricingCatalogStore";
 import { logContactEvent } from "@/lib/contact/log";
+import { resolveCommercialMarket, resolveDisplayCurrency } from "@/lib/pricing/commercialContext";
+import { resolveOfficialPrice } from "@/lib/pricing/resolveOfficialPrice";
+import { withDisplayPrice } from "@/lib/pricing/displayPrice";
 
 export const runtime = "nodejs";
 
@@ -73,6 +76,32 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // XAYVEN CORE Phase 1 — Capture Commercial Context. Same resolvers
+  // /api/ai/chat/route.ts already uses to answer pricing questions —
+  // never a client-supplied market/currency/price. `marketCode`/
+  // `displayCurrency` are captured whenever a market resolves, regardless
+  // of whether a package was selected; `officialAmount`/`officialCurrency`
+  // only when `plan` resolved to a real, active catalog item AND Pricing
+  // Core actually had a number to show (never fabricated — same "null
+  // means nothing to show" discipline as resolveOfficialPrice() itself).
+  // withDisplayPrice() is reused as-is: it already resolves EUR↔USD via
+  // the sibling market's own explicit price (never exchange_rates) when
+  // one exists, exactly the anti-arbitrage behavior already audited —
+  // nothing about that logic is duplicated or reimplemented here.
+  const { market } = await resolveCommercialMarket();
+  const { currency: displayCurrency } = await resolveDisplayCurrency(market);
+
+  let officialAmount: number | null = null;
+  let officialCurrency: string | null = null;
+  if (pricingCatalogId && plan) {
+    const official = await resolveOfficialPrice({ itemSlug: plan, market: market.code });
+    const displayed = await withDisplayPrice(official, displayCurrency);
+    if (displayed.amount !== null) {
+      officialAmount = displayed.amount;
+      officialCurrency = displayed.currency;
+    }
+  }
+
   let contactRequest: Awaited<ReturnType<typeof createContactRequest>>;
   try {
     contactRequest = await createContactRequest({
@@ -83,6 +112,10 @@ export async function POST(request: NextRequest) {
       budget: data.budget,
       message: data.message,
       pricingCatalogId,
+      marketCode: market.code,
+      displayCurrency,
+      officialAmount,
+      officialCurrency,
     });
   } catch (error) {
     // Never claim success when the request was never actually saved — see

@@ -37,6 +37,10 @@ interface ContactRequestRow {
   client_id: string | null;
   client_was_created: boolean | null;
   pricing_catalog_id: string | null;
+  market_code: string | null;
+  display_currency: string | null;
+  official_amount: number | null;
+  official_currency: string | null;
 }
 
 function rowToContactRequest(row: ContactRequestRow): ContactRequest {
@@ -53,18 +57,40 @@ function rowToContactRequest(row: ContactRequestRow): ContactRequest {
     clientId: row.client_id,
     clientWasCreated: row.client_was_created,
     pricingCatalogId: row.pricing_catalog_id,
+    marketCode: row.market_code,
+    displayCurrency: row.display_currency,
+    officialAmount: row.official_amount,
+    officialCurrency: row.official_currency,
   };
 }
 
 export async function createContactRequest(
   input: Omit<
     ContactRequest,
-    "id" | "createdAt" | "status" | "clientId" | "clientWasCreated" | "pricingCatalogId"
+    | "id"
+    | "createdAt"
+    | "status"
+    | "clientId"
+    | "clientWasCreated"
+    | "pricingCatalogId"
+    | "marketCode"
+    | "displayCurrency"
+    | "officialAmount"
+    | "officialCurrency"
   > & {
     /** Optional — omitted entirely by every caller that predates Fase 2
      *  (Pricing Core → Project Request). Defaults to `null`, the exact
      *  same "no plan selected" state Flujo B/C submissions get today. */
     pricingCatalogId?: string | null;
+    /** XAYVEN CORE Phase 1 — all four optional, defaulting to `null`, same
+     *  discipline as pricingCatalogId above: any caller that predates this
+     *  column (there are none left in this codebase, but a future one
+     *  could still omit them) gets the exact same "unknown, never
+     *  guessed" state a historical row has. */
+    marketCode?: string | null;
+    displayCurrency?: string | null;
+    officialAmount?: number | null;
+    officialCurrency?: string | null;
   }
 ): Promise<ContactRequest> {
   const supabase = getSupabaseAdmin();
@@ -75,6 +101,10 @@ export async function createContactRequest(
     clientId: null,
     clientWasCreated: null,
     pricingCatalogId: null,
+    marketCode: null,
+    displayCurrency: null,
+    officialAmount: null,
+    officialCurrency: null,
     ...input,
   };
 
@@ -95,6 +125,10 @@ export async function createContactRequest(
       message: draft.message,
       status: draft.status,
       pricing_catalog_id: draft.pricingCatalogId,
+      market_code: draft.marketCode,
+      display_currency: draft.displayCurrency,
+      official_amount: draft.officialAmount,
+      official_currency: draft.officialCurrency,
     })
     .select("*")
     .single();

@@ -84,6 +84,10 @@ function makeContactRequest(overrides: Partial<ContactRequest> = {}): ContactReq
     clientId: "client-1",
     clientWasCreated: true,
     pricingCatalogId: null,
+    marketCode: null,
+    displayCurrency: null,
+    officialAmount: null,
+    officialCurrency: null,
     ...overrides,
   };
 }

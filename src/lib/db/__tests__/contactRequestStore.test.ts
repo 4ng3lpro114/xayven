@@ -53,6 +53,38 @@ describe("createContactRequest / getContactRequestById", () => {
     expect(created.company).toBeNull();
   });
 
+  it("XAYVEN CORE Phase 1 — sin marketCode/displayCurrency/officialAmount/officialCurrency (solicitud histórica, previa a esta columna) → los 4 quedan null, nunca inventados", async () => {
+    const created = await createContactRequest(makeInput());
+    expect(created.marketCode).toBeNull();
+    expect(created.displayCurrency).toBeNull();
+    expect(created.officialAmount).toBeNull();
+    expect(created.officialCurrency).toBeNull();
+
+    const fetched = await getContactRequestById(created.id);
+    expect(fetched?.marketCode).toBeNull();
+    expect(fetched?.displayCurrency).toBeNull();
+    expect(fetched?.officialAmount).toBeNull();
+    expect(fetched?.officialCurrency).toBeNull();
+  });
+
+  it("XAYVEN CORE Phase 1 — con contexto comercial explícito → los 4 campos se persisten y se leen exactos", async () => {
+    const created = await createContactRequest(
+      makeInput({
+        marketCode: "EU",
+        displayCurrency: "USD",
+        officialAmount: 2659,
+        officialCurrency: "USD",
+      })
+    );
+    expect(created.marketCode).toBe("EU");
+    expect(created.displayCurrency).toBe("USD");
+    expect(created.officialAmount).toBe(2659);
+    expect(created.officialCurrency).toBe("USD");
+
+    const fetched = await getContactRequestById(created.id);
+    expect(fetched).toEqual(created);
+  });
+
   it("getContactRequestById devuelve null para un id inexistente", async () => {
     const result = await getContactRequestById("00000000-0000-0000-0000-000000000000");
     expect(result).toBeNull();
