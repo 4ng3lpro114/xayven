@@ -4,8 +4,11 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { AdminFormSection, AdminField, AdminCheckboxField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { MarketFallbackBehavior, PricingMarket } from "@/lib/pricing/market/types";
+
+const CURRENCY_OPTIONS = ["COP", "USD", "EUR"];
 
 const FALLBACK_LABELS: Record<MarketFallbackBehavior, string> = {
   QUOTE_ONLY: "Solo cotización (no muestra ningún precio)",
@@ -30,6 +33,13 @@ export interface MarketFormValues {
  * Admin UI Polish — grouped into AdminFormSection blocks (Identificación /
  * Política comercial / Estado) instead of a flat label-input run. Field
  * names, submit payload, and validation are byte-for-byte the same.
+ *
+ * XAYVEN CORE Phase 3.5 (Admin UI consistency) — currency/fallbackBehavior
+ * now render via CustomSelect.tsx (same public-facing dropdown ContactForm/
+ * MaintenanceForm already use) instead of a native `<select>`, purely so
+ * the option list matches XAYVEN's own visual language instead of the
+ * browser/OS chrome. Same field names, same submitted values, same
+ * defaultValue/submit handling — visual only.
  */
 export function MarketForm({
   mode,
@@ -129,11 +139,13 @@ export function MarketForm({
           </AdminField>
         </div>
         <AdminField label="Moneda" htmlFor="currency">
-          <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={adminInputClasses}>
-            <option value="COP">COP</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-          </select>
+          <CustomSelect
+            id="currency"
+            name="currency"
+            options={CURRENCY_OPTIONS}
+            defaultValue={initialValues?.currency ?? "COP"}
+            placeholder="—"
+          />
         </AdminField>
       </AdminFormSection>
 
@@ -146,18 +158,13 @@ export function MarketForm({
         </AdminCheckboxField>
 
         <AdminField label="Política de fallback (sin precio propio ni conversión disponible)" htmlFor="fallbackBehavior">
-          <select
+          <CustomSelect
             id="fallbackBehavior"
             name="fallbackBehavior"
+            options={Object.entries(FALLBACK_LABELS).map(([value, label]) => ({ value, label }))}
             defaultValue={initialValues?.fallbackBehavior ?? "QUOTE_ONLY"}
-            className={adminInputClasses}
-          >
-            {Object.entries(FALLBACK_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            placeholder="—"
+          />
         </AdminField>
       </AdminFormSection>
 

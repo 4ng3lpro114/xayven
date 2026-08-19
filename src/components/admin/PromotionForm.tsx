@@ -4,10 +4,12 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { AdminFormSection, AdminField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { Promotion, PromotionAudience, PromotionDiscountType } from "@/lib/promotions/types";
 
 const inputClasses = adminInputClasses;
+const CURRENCY_OPTIONS = ["COP", "USD"];
 
 const AUDIENCE_LABELS: Record<PromotionAudience, string> = {
   new_users: "Usuarios nuevos",
@@ -48,6 +50,12 @@ export interface PromotionFormValues {
  * /admin/promotions/[id], mirroring NewProjectForm.tsx's exact
  * structure/styling (same inputClasses, same Field helper, same
  * loading/error state shape) — no new form pattern introduced.
+ *
+ * XAYVEN CORE Phase 3.5 (Admin UI consistency) — discountType/currency/
+ * audience now render via CustomSelect.tsx instead of a native `<select>`.
+ * discountType's `onValueChange` replaces its old `onChange` 1:1 — same
+ * `setDiscountType` call, same conditional Moneda field, same submitted
+ * values. Visual only.
  */
 export function PromotionForm({
   mode,
@@ -154,19 +162,14 @@ export function PromotionForm({
       <AdminFormSection title="Descuento">
         <div className="grid gap-5 sm:grid-cols-2">
           <AdminField label="Tipo de descuento" htmlFor="discountType">
-            <select
+            <CustomSelect
               id="discountType"
               name="discountType"
+              options={Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
               defaultValue={discountType}
-              onChange={(e) => setDiscountType(e.target.value as PromotionDiscountType)}
-              className={inputClasses}
-            >
-              {Object.entries(DISCOUNT_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => setDiscountType(v as PromotionDiscountType)}
+              placeholder="—"
+            />
           </AdminField>
           <AdminField label={discountType === "percentage" ? "Porcentaje" : "Valor"} htmlFor="discountValue">
             <input
@@ -185,10 +188,13 @@ export function PromotionForm({
 
         {discountType !== "percentage" && (
           <AdminField label="Moneda" htmlFor="currency">
-            <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={inputClasses}>
-              <option value="COP">COP</option>
-              <option value="USD">USD</option>
-            </select>
+            <CustomSelect
+              id="currency"
+              name="currency"
+              options={CURRENCY_OPTIONS}
+              defaultValue={initialValues?.currency ?? "COP"}
+              placeholder="—"
+            />
           </AdminField>
         )}
       </AdminFormSection>
@@ -218,13 +224,13 @@ export function PromotionForm({
         </div>
 
         <AdminField label="Audiencia" htmlFor="audience">
-          <select id="audience" name="audience" defaultValue={initialValues?.audience ?? "all"} className={inputClasses}>
-            {Object.entries(AUDIENCE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <CustomSelect
+            id="audience"
+            name="audience"
+            options={Object.entries(AUDIENCE_LABELS).map(([value, label]) => ({ value, label }))}
+            defaultValue={initialValues?.audience ?? "all"}
+            placeholder="—"
+          />
         </AdminField>
       </AdminFormSection>
 
