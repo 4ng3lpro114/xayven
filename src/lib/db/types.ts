@@ -151,6 +151,25 @@ export interface ContactRequest {
    *  before this column existed (0015_contact_requests_pricing_catalog_id.sql).
    *  Never treated as an error state. */
   pricingCatalogId: string | null;
+
+  /** XAYVEN CORE Phase 1 — commercial context, resolved server-side ONLY
+   *  (resolveCommercialMarket()/resolveDisplayCurrency()/
+   *  resolveOfficialPrice()/withDisplayPrice(), see /api/contact/route.ts)
+   *  — never a client-supplied value; contactSchema doesn't even define
+   *  these as accepted fields. `marketCode`/`displayCurrency` are captured
+   *  whenever a market resolves, independent of whether a package was
+   *  selected. `officialAmount`/`officialCurrency` are null together —
+   *  either both are set (a package was selected AND Pricing Core had a
+   *  real number to show) or neither is. All four null together means
+   *  either "no package was selected" or "this request predates
+   *  0026_contact_requests_commercial_context.sql" — never distinguished,
+   *  same discipline as pricingCatalogId above. */
+  marketCode: string | null;
+  displayCurrency: string | null;
+  /** Whole-unit integer, never a formatted string — e.g. 2299, not
+   *  "€2.299". Denominated in `displayCurrency`/`officialCurrency`. */
+  officialAmount: number | null;
+  officialCurrency: string | null;
 }
 
 export interface ConversationCounts {
