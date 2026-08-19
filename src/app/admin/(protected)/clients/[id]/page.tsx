@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Plus } from "lucide-react";
 import { getClientById, listProjects, listPayments } from "@/lib/db/paymentsStore";
-import { listConversations } from "@/lib/db/conversationStore";
+import { listConversations, listAllLeadStatusHistory } from "@/lib/db/conversationStore";
 import { listContactRequests } from "@/lib/db/contactRequestStore";
 import { listMaintenanceRequests } from "@/lib/db/maintenanceStore";
 import { listLinkedProfileClientIds } from "@/lib/db/profilesStore";
+import { listClientNotes } from "@/lib/db/clientNoteStore";
 import { buildClientSummaries } from "@/lib/clients/summary";
 import { buildActivityFeed } from "@/lib/clients/activity";
 import { getClientProtectionReason } from "@/lib/clients/importance";
@@ -14,6 +15,7 @@ import { ClientImportanceBadge } from "@/components/admin/ClientImportanceBadge"
 import { AccountStatusBadge } from "@/components/admin/AccountStatusBadge";
 import { CommercialStatusBadge } from "@/components/admin/CommercialStatusBadge";
 import { ClientActions } from "@/components/admin/ClientActions";
+import { ClientNotes } from "@/components/admin/ClientNotes";
 import { PaymentStatusBadge } from "@/components/payments/PaymentStatusBadge";
 import { ProjectStatusBadge } from "@/components/admin/ProjectStatusBadge";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
@@ -53,28 +55,52 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
   const client = await getClientById(id);
   if (!client) notFound();
 
-  const [conversations, projects, payments, convertedContactRequests, allMaintenanceRequests, linkedClientIds] =
-    await Promise.all([
-      listConversations({ clientId: client.id, limit: RELATIONS_LIMIT }),
-      listProjects({ clientId: client.id }),
-      listPayments({ clientId: client.id, limit: RELATIONS_LIMIT }),
-      // listContactRequests() has no clientId filter — same bulk-fetch +
-      // in-memory-filter technique as the rest of this codebase (Fase 5C
-      // Etapa 12). Only "converted" is relevant here: client_id is only
-      // ever set together with status="converted" (linkContactRequestToClient()),
-      // so filtering to "converted" first can never exclude a linked request.
-      listContactRequests({ status: "converted", limit: RELATIONS_LIMIT }),
-      // XAYVEN CORE Phase 2 — listMaintenanceRequests() has no clientId
-      // filter either (same store-level limitation as contact requests
-      // above); same bulk-fetch + in-memory-filter technique.
-      listMaintenanceRequests({ limit: RELATIONS_LIMIT }),
-      // Real profiles.client_id relationship — see "Cuenta XAYVEN" below.
-      // Was missing on this page until now (only the list view had it) —
-      // needed to render "Cuenta XAYVEN: Activa/Inactiva" here.
-      listLinkedProfileClientIds(),
-    ]);
+  const [
+    conversations,
+    projects,
+    payments,
+    convertedContactRequests,
+    allMaintenanceRequests,
+    linkedClientIds,
+    allLeadStatusHistory,
+    notes,
+  ] = await Promise.all([
+    listConversations({ clientId: client.id, limit: RELATIONS_LIMIT }),
+    listProjects({ clientId: client.id }),
+    listPayments({ clientId: client.id, limit: RELATIONS_LIMIT }),
+    // listContactRequests() has no clientId filter — same bulk-fetch +
+    // in-memory-filter technique as the rest of this codebase (Fase 5C
+    // Etapa 12). Only "converted" is relevant here: client_id is only
+    // ever set together with status="converted" (linkContactRequestToClient()),
+    // so filtering to "converted" first can never exclude a linked request.
+    listContactRequests({ status: "converted", limit: RELATIONS_LIMIT }),
+    // XAYVEN CORE Phase 2 — listMaintenanceRequests() has no clientId
+    // filter either (same store-level limitation as contact requests
+    // above); same bulk-fetch + in-memory-filter technique.
+    listMaintenanceRequests({ limit: RELATIONS_LIMIT }),
+    // Real profiles.client_id relationship — see "Cuenta XAYVEN" below.
+    // Was missing on this page until now (only the list view had it) —
+    // needed to render "Cuenta XAYVEN: Activa/Inactiva" here.
+    listLinkedProfileClientIds(),
+    // XAYVEN CORE Phase 3.6 — same bulk-fetch + in-memory-filter technique
+    // as contactRequests/maintenanceRequests above. listAllLeadStatusHistory()
+    // already existed (Analytics V2) but was never read by the Admin UI —
+    // this is its first consumer outside statistics.
+    listAllLeadStatusHistory({ limit: RELATIONS_LIMIT }),
+    // XAYVEN CORE Phase 3.6 — real server-side filter (client_notes has no
+    // whole-table admin listing that would need the bulk-fetch pattern).
+    listClientNotes(client.id),
+  ]);
   const contactRequests = convertedContactRequests.filter((r) => r.clientId === client.id);
   const maintenanceRequests = allMaintenanceRequests.filter((m) => m.clientId === client.id);
+  // Filtered by conversationId, NOT by the history entry's own snapshot
+  // clientId — most of a client's actual lead-status progression
+  // (exploring → interested → hot) happens BEFORE the conversation ever
+  // converts, when that snapshot is still null (see LeadStatusHistoryEntry's
+  // doc comment in db/types.ts). Filtering by clientId would silently drop
+  // exactly the transitions this timeline exists to show.
+  const conversationIds = new Set(conversations.map((c) => c.id));
+  const leadStatusHistory = allLeadStatusHistory.filter((h) => conversationIds.has(h.conversationId));
 
   const summary = buildClientSummaries({
     clients: [client],
@@ -85,10 +111,15 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
     linkedClientIds,
   }).get(client.id)!;
 
-  const activityFeed = buildActivityFeed({ conversations, projects, payments, maintenanceRequests }).slice(
-    0,
-    ACTIVITY_FEED_LIMIT
-  );
+  const activityFeed = buildActivityFeed({
+    conversations,
+    projects,
+    payments,
+    maintenanceRequests,
+    contactRequests,
+    leadStatusHistory,
+    notes,
+  }).slice(0, ACTIVITY_FEED_LIMIT);
 
   // "Empresa": `clients.company` (0008_clients_company.sql) is the real
   // column now — populated when a client is created via a "Crear mi
@@ -194,6 +225,13 @@ export default async function AdminClientDetailPage({ params }: PageProps) {
             ))
           )}
         </div>
+      </AdminSection>
+
+      {/* XAYVEN CORE Phase 3.6 — la única sección donde se lee el contenido
+         real de una nota; "Actividad reciente" arriba solo muestra la
+         etiqueta fija "Nota interna" (ver buildActivityFeed()). */}
+      <AdminSection title="Notas">
+        <ClientNotes clientId={client.id} notes={notes} />
       </AdminSection>
 
       <AdminSection title="Conversaciones">

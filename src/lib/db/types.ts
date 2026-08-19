@@ -222,3 +222,18 @@ export interface LeadStatusHistoryEntry {
   source: LeadStatusChangeSource;
   metadata: Record<string, unknown>;
 }
+
+/**
+ * XAYVEN CORE Phase 3.6 — free-text internal note an admin leaves on a
+ * client. See supabase/migrations/0028_client_notes.sql for why this is
+ * `ON DELETE CASCADE` (unlike every other client_id FK in this file, which
+ * is `SET NULL`) and why there's no `authorId` (no multi-admin auth
+ * exists yet). Create/list/delete only — no edit, deliberately, per the
+ * Phase 3.6 scope.
+ */
+export interface ClientNote {
+  id: string;
+  clientId: string;
+  body: string;
+  createdAt: string;
+}
