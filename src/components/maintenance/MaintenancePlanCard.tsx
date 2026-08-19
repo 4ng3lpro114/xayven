@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Check } from "lucide-react";
+import { Check, ArrowUpRight } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics/track";
@@ -26,6 +26,14 @@ interface MaintenancePlanCardProps {
  * mount and `maintenance_cta` on the request-form link click — same
  * `trackEvent()` primitive every other tracked component in this arc
  * uses, no new mechanism.
+ *
+ * XAYVEN CORE Phase 3.2B (UI visual polish): visual-only pass to bring
+ * this into the same card family as ProjectCover/ServiceIndexCard —
+ * `shadow-soft` resting state and the shared `hover:shadow-glow-sm`
+ * signature (featured plans, already resting at `shadow-glow-sm`, step up
+ * to `shadow-glow-md` on hover instead) plus an arrow on the CTA matching
+ * ServiceIndexCard's. No feature list, pricing, slug or tracking logic
+ * touched.
  */
 export function MaintenancePlanCard({
   slug,
@@ -47,13 +55,15 @@ export function MaintenancePlanCard({
     <Reveal delay={delay} className="h-full">
       <article
         className={cn(
-          "flex h-full flex-col rounded-lg border p-6",
-          featured ? "border-border-accent bg-bg-elevated shadow-glow-sm" : "border-border bg-bg-raised"
+          "group flex h-full flex-col rounded-lg border p-6 transition-[border-color,box-shadow] duration-300",
+          featured
+            ? "border-border-accent bg-bg-elevated shadow-glow-sm hover:shadow-glow-md"
+            : "border-border bg-bg-raised shadow-soft hover:border-border-accent hover:shadow-glow-sm"
         )}
       >
         <h3 className="text-lg font-semibold text-fg">{name}</h3>
         <p className="mt-1 text-sm text-accent-300">{tagline}</p>
-        <p className="mt-3 text-sm text-fg-muted">{who}</p>
+        <p className="mt-3 text-sm leading-relaxed text-fg-muted">{who}</p>
 
         <ul className="mt-5 flex-1 space-y-2.5">
           {features.map((feature) => (
@@ -69,9 +79,10 @@ export function MaintenancePlanCard({
           <a
             href="#maintenance-request"
             onClick={() => trackEvent("maintenance_cta", { packageSlug: slug })}
-            className="text-sm font-medium text-accent-300 transition-colors hover:text-accent-200"
+            className="inline-flex items-center gap-1 text-sm font-medium text-accent-300 transition-transform duration-300 group-hover:translate-x-0.5 hover:text-accent-200"
           >
             {ctaLabel}
+            <ArrowUpRight className="size-4" aria-hidden="true" />
           </a>
         </div>
       </article>
