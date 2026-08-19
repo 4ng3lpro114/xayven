@@ -5,6 +5,7 @@ import { CONTACT_EMAIL } from "@/lib/constants";
 import { locales, localeNames, localizePath, type Locale } from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 import { CommercialMarketSelector } from "@/components/pricing/CommercialMarketSelector";
+import type { MarketDetectionState } from "@/lib/pricing/commercialContext";
 
 interface FooterProps {
   locale: Locale;
@@ -17,10 +18,14 @@ interface FooterProps {
    *  on portal/auth routes. */
   markets: readonly { code: string; currency: string }[];
   currentMarketCode: string;
-  isManual: boolean;
+  /** XAYVEN CORE Phase 3.1 — replaces the old `isManual: boolean`, which
+   *  collapsed "detected via real geolocation" and "geolocation failed,
+   *  fell to OTHER" into the same `false`. See
+   *  toMarketDetectionState() (commercialContext.ts). */
+  detectionState: MarketDetectionState;
 }
 
-export function Footer({ locale, dict, markets, currentMarketCode, isManual }: FooterProps) {
+export function Footer({ locale, dict, markets, currentMarketCode, detectionState }: FooterProps) {
   const year = new Date().getFullYear();
   const currentPath = `/${locale}`;
 
@@ -100,11 +105,17 @@ export function Footer({ locale, dict, markets, currentMarketCode, isManual }: F
               <CommercialMarketSelector
                 markets={markets}
                 currentMarketCode={currentMarketCode}
-                isManual={isManual}
+                detectionState={detectionState}
                 marketNames={dict.pricing.marketNames}
+                marketDetails={dict.pricing.marketDetails}
                 label={dict.pricing.marketLabel}
                 explanation={dict.pricing.marketExplanation}
                 automaticLabel={dict.pricing.marketAutomaticLabel}
+                detectedLabel={dict.pricing.marketDetectedLabel}
+                manualLabel={dict.pricing.marketManualLabel}
+                fallbackLabel={dict.pricing.marketFallbackLabel}
+                fallbackCountryLabel={dict.pricing.marketFallbackCountryLabel}
+                activeLabel={dict.pricing.marketActiveLabel}
               />
             </div>
           </div>

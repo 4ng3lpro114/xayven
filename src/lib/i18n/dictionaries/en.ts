@@ -415,6 +415,17 @@ export const en: Dictionary = {
       EU: "Europe",
       OTHER: "Other markets",
     },
+    marketDetails: {
+      CO: { currencyName: "Colombian pesos", symbol: "$" },
+      US: { currencyName: "US dollars", symbol: "$" },
+      EU: { currencyName: "Euros", symbol: "€" },
+      OTHER: { currencyName: null, symbol: "$" },
+    },
+    marketDetectedLabel: "Detected automatically",
+    marketManualLabel: "Manually selected",
+    marketFallbackLabel: "We couldn't determine your location",
+    marketFallbackCountryLabel: "Other countries",
+    marketActiveLabel: "ACTIVE",
   },
 
   ai: {

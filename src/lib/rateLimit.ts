@@ -68,14 +68,23 @@ function isPrivateIp(ip: string): boolean {
  * This deliberately never picks a private/internal address, which is what
  * would otherwise risk merging many distinct legitimate visitors behind a
  * shared internal hop into a single rate-limit bucket.
+ *
+ * Factored out (XAYVEN CORE Phase 3.1) into a header-getter-agnostic core
+ * so the exact same logic can run against either a real `NextRequest`
+ * (`getClientIp`, all existing callers, unchanged) or a `next/headers`
+ * `headers()` result (`getClientIpFromHeaders`, used by
+ * commercialContext.ts's geo-IP market detection — Server Components have
+ * no `NextRequest` to read, only `headers()`). Neither the signature nor
+ * the behavior of `getClientIp()` itself changes for any of its ~25
+ * existing callers.
  */
-export function getClientIp(request: NextRequest): string {
+function extractClientIp(getHeader: (name: string) => string | null | undefined): string {
   const candidates: string[] = [];
 
-  const realIp = request.headers.get("x-real-ip")?.trim();
+  const realIp = getHeader("x-real-ip")?.trim();
   if (realIp) candidates.push(realIp);
 
-  const forwarded = request.headers.get("x-forwarded-for");
+  const forwarded = getHeader("x-forwarded-for");
   if (forwarded) {
     const parts = forwarded
       .split(",")
@@ -89,6 +98,17 @@ export function getClientIp(request: NextRequest): string {
   if (firstPublic) return firstPublic;
 
   return candidates[0] ?? "unknown";
+}
+
+export function getClientIp(request: NextRequest): string {
+  return extractClientIp((name) => request.headers.get(name));
+}
+
+/** Same extraction logic as `getClientIp()`, against a `next/headers`
+ *  `headers()`-shaped object instead of a `NextRequest` — see the doc
+ *  comment above `extractClientIp()`. */
+export function getClientIpFromHeaders(headerList: { get(name: string): string | null }): string {
+  return extractClientIp((name) => headerList.get(name));
 }
 
 /**
