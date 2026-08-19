@@ -7,12 +7,21 @@ import type { MaintenanceRequest } from "@/lib/db/types";
 const memoryStore = getGlobalArray<MaintenanceRequest>("maintenanceRequests");
 
 export async function createMaintenanceRequest(
-  input: Omit<MaintenanceRequest, "id" | "createdAt" | "status">
+  input: Omit<MaintenanceRequest, "id" | "createdAt" | "status" | "clientId"> & {
+    /** XAYVEN CORE Phase 2 — resolved server-side by the caller (POST
+     *  /api/maintenance) via a best-effort normalized-email lookup against
+     *  `clients` — NEVER auto-created here or by the caller. Optional,
+     *  defaults to `null`: a maintenance request always survives on its
+     *  own regardless of whether a match was found. Same discipline as
+     *  createContactRequest()'s marketCode/displayCurrency/... params. */
+    clientId?: string | null;
+  }
 ): Promise<MaintenanceRequest> {
   const record: MaintenanceRequest = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
     status: "new",
+    clientId: null,
     ...input,
   };
 
@@ -32,6 +41,7 @@ export async function createMaintenanceRequest(
     priority: record.priority,
     message: record.message,
     status: record.status,
+    client_id: record.clientId,
   });
 
   if (error) {
@@ -54,6 +64,7 @@ interface MaintenanceRequestRow {
   priority: string;
   message: string;
   status: MaintenanceRequest["status"];
+  client_id: string | null;
 }
 
 function rowToMaintenanceRequest(row: MaintenanceRequestRow): MaintenanceRequest {
@@ -68,17 +79,37 @@ function rowToMaintenanceRequest(row: MaintenanceRequestRow): MaintenanceRequest
     priority: row.priority,
     message: row.message,
     status: row.status,
+    clientId: row.client_id,
   };
 }
 
 /**
- * Fase 10 (Analytics V2) — read-only. First time `maintenance_requests` is
- * ever listed anywhere in the codebase; before this, the table only ever
+ * XAYVEN CORE Phase 2 — single-record lookup, needed for
+ * /admin/maintenance/[id] (this table had zero admin surface before this
+ * phase — see the Phase 2 architecture audit). Same shape as
+ * getContactRequestById(): Supabase when configured, in-memory fallback
+ * otherwise, `null` (never throws) when nothing matches.
+ */
+export async function getMaintenanceRequestById(id: string): Promise<MaintenanceRequest | null> {
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return memoryStore.find((r) => r.id === id) ?? null;
+  }
+
+  const { data } = await supabase.from("maintenance_requests").select("*").eq("id", id).single();
+  return data ? rowToMaintenanceRequest(data as MaintenanceRequestRow) : null;
+}
+
+/**
+ * Fase 10 (Analytics V2) — read-only. First time `maintenance_requests` was
+ * ever listed anywhere in the codebase; before that, the table only ever
  * received inserts from the public /maintenance form, with zero admin
- * visibility (confirmed in the Fase 10 Etapa 1 audit). Deliberately never
- * relates this to `clients`/`projects` — that link does not exist in the
- * schema (no client_id/project_id column here, see 0001_init.sql) and is
- * not invented here.
+ * visibility. XAYVEN CORE Phase 2 added a real (nullable) `client_id` and
+ * /admin/maintenance on top of this — `project_id` still does not exist on
+ * this table and is not invented here; the Phase 2 audit found no evidence
+ * a maintenance request needs a direct project relation beyond the client
+ * it's already linked to.
  */
 export async function listMaintenanceRequests(options?: {
   limit?: number;

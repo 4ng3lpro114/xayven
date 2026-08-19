@@ -89,6 +89,29 @@ describe("createContactRequest / getContactRequestById", () => {
     const result = await getContactRequestById("00000000-0000-0000-0000-000000000000");
     expect(result).toBeNull();
   });
+
+  it("XAYVEN CORE Phase 2 — F: filtrar por status='converted' + clientId (el mismo mecanismo que /admin/clients/[id] usa para su tabla 'Solicitudes') encuentra exactamente las solicitudes de ese cliente", async () => {
+    const clientId = randomUUID();
+    const otherClientId = randomUUID();
+
+    const linked = await createContactRequest(
+      makeInput({ marketCode: "CO", displayCurrency: "COP", officialAmount: 799_000, officialCurrency: "COP" })
+    );
+    await linkContactRequestToClient(linked.id, clientId, false);
+
+    const otherLinked = await createContactRequest(makeInput());
+    await linkContactRequestToClient(otherLinked.id, otherClientId, false);
+
+    await createContactRequest(makeInput()); // status "new" — nunca debe aparecer
+
+    const converted = await listContactRequests({ status: "converted", limit: 1000 });
+    const forThisClient = converted.filter((r) => r.clientId === clientId);
+
+    expect(forThisClient).toHaveLength(1);
+    expect(forThisClient[0]!.id).toBe(linked.id);
+    expect(forThisClient[0]!.marketCode).toBe("CO");
+    expect(forThisClient[0]!.officialAmount).toBe(799_000);
+  });
 });
 
 describe("listContactRequests", () => {

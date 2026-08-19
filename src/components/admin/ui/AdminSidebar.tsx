@@ -8,6 +8,7 @@ import {
   Briefcase,
   CreditCard,
   Inbox,
+  Wrench,
   Tag,
   Layers,
   Package,
@@ -36,7 +37,8 @@ export interface NavGroup {
  * the same hrefs the old nav used — nothing here changes what a link
  * points to, only how the list is organized and rendered. Grouping
  * mirrors the actual domain structure already established across this
- * codebase: Comercial (leads/clients/projects/payments/promotions),
+ * codebase: Comercial (leads/clients/projects/payments/promotions/
+ * mantenimiento — added in XAYVEN CORE Phase 2),
  * Catálogo (services/packages — both live in pricing_catalog),
  * International Pricing (markets/currency — Phase D's own domain),
  * Insights (Analytics).
@@ -54,6 +56,7 @@ export function buildGroups(newContactRequestsCount: number): NavGroup[] {
         { href: "/admin/projects", label: "Proyectos", icon: Briefcase },
         { href: "/admin/payments", label: "Pagos", icon: CreditCard },
         { href: "/admin/contact-requests", label: "Solicitudes", icon: Inbox, badge: newContactRequestsCount },
+        { href: "/admin/maintenance", label: "Mantenimiento", icon: Wrench },
         { href: "/admin/promotions", label: "Promociones", icon: Tag },
       ],
     },

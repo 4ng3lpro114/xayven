@@ -448,6 +448,7 @@ function makeMaintenanceRequest(overrides: Partial<MaintenanceRequest> = {}): Ma
     priority: "normal",
     message: "...",
     status: "new",
+    clientId: null,
     ...overrides,
   };
 }

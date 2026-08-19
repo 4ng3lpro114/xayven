@@ -5,6 +5,7 @@ import { ArrowLeft, Mail, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getContactRequestById } from "@/lib/db/contactRequestStore";
 import { getPricingCatalogItemById } from "@/lib/db/pricingCatalogStore";
 import { getClientById } from "@/lib/db/paymentsStore";
+import { formatMoney } from "@/lib/payments/format";
 import { buildContactRequestMailto } from "@/lib/contact/mailto";
 import { deriveContactRequestClientBanner } from "@/lib/contact/clientBanner";
 import { ContactRequestStatusBadge } from "@/components/admin/ContactRequestStatusBadge";
@@ -207,6 +208,32 @@ export default async function ContactRequestDetailPage({ params }: PageProps) {
             <Field label="Tipo de proyecto" value={request.projectType} />
             <Field label="Presupuesto" value={request.budget} />
             <Field label="Plan solicitado" value={requestedPlanLabel} />
+          </div>
+        </AdminSection>
+
+        {/* XAYVEN CORE Phase 1 captured this at submission time
+           (market_code/display_currency/official_amount/official_currency
+           on contact_requests) but no admin surface ever showed it — see
+           the Phase 2 architecture audit. These are historical snapshots
+           of what the visitor actually saw on screen at that moment: shown
+           exactly as stored, never recomputed via the pricing resolver
+           (which would answer "what would this cost today", a different
+           question). `null` covers both "no package was selected" and
+           "this request predates 0026" — never distinguished, same
+           discipline the store itself already documents. */}
+        <AdminSection title="Contexto comercial">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Mercado" value={request.marketCode || "No disponible"} />
+            <Field label="Moneda mostrada" value={request.displayCurrency || "No disponible"} />
+            <Field
+              label="Monto oficial"
+              value={
+                request.officialAmount !== null && request.officialCurrency !== null
+                  ? formatMoney(request.officialAmount, request.officialCurrency)
+                  : "No disponible"
+              }
+            />
+            <Field label="Moneda oficial" value={request.officialCurrency || "No disponible"} />
           </div>
         </AdminSection>
 

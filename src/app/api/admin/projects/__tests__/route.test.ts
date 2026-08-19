@@ -171,6 +171,61 @@ describe("POST /api/admin/projects", () => {
     expect(res.status).toBe(400);
   });
 
+  describe("XAYVEN CORE Phase 2 — H: dedup al crear con clientName/clientEmail (sin clientId)", () => {
+    it("clientEmail ya existente → reutiliza ese cliente (createClientOrGetExisting), no crea un duplicado ni revienta con 23505", async () => {
+      requireAdminSessionMock.mockResolvedValue(true);
+      const email = `dup-${Date.now()}@example.com`;
+      const existing = await createPaymentsClient({ name: "Cliente Ya Existente", email });
+      const before = await listClients();
+
+      const res = await POST(
+        makeRequest({
+          clientName: "Nombre Distinto Escrito Por El Admin",
+          clientEmail: email,
+          projectName: "Segundo proyecto para el mismo cliente",
+          totalAmount: 1_800_000,
+          currency: "COP",
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+
+      // Ningún cliente nuevo — el existente se reutilizó.
+      const after = await listClients();
+      expect(after.length).toBe(before.length);
+
+      // El proyecto quedó en el cliente EXISTENTE (no en uno duplicado con
+      // el "Nombre Distinto" que el admin escribió).
+      const project = await getProjectById(body.projectId);
+      expect(project?.clientId).toBe(existing.id);
+
+      const emailMatches = after.filter((c) => c.email.trim().toLowerCase() === email.trim().toLowerCase());
+      expect(emailMatches).toHaveLength(1);
+    });
+
+    it("clientEmail nuevo → comportamiento intacto: crea un cliente real", async () => {
+      requireAdminSessionMock.mockResolvedValue(true);
+      const email = `brand-new-${Date.now()}@example.com`;
+      const before = await listClients();
+
+      const res = await POST(
+        makeRequest({
+          clientName: "Cliente Totalmente Nuevo",
+          clientEmail: email,
+          projectName: "Proyecto para cliente nuevo",
+          totalAmount: 1_000_000,
+          currency: "COP",
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const after = await listClients();
+      expect(after.length).toBe(before.length + 1);
+    });
+  });
+
   describe("Etapa 7 — prueba explícita de no duplicación (fixture aislado, sin tocar Supabase real)", () => {
     it("cliente de prueba 'Angel Rojas': mismo clientId, un solo proyecto, sin segundo 'Angel Rojas' duplicado", async () => {
       requireAdminSessionMock.mockResolvedValue(true);

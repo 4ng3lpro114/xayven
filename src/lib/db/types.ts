@@ -105,6 +105,15 @@ export interface MaintenanceRequest {
   priority: string;
   message: string;
   status: "new" | "contacted" | "resolved";
+  /** XAYVEN CORE Phase 2 — resolved server-side ONLY, via a best-effort
+   *  normalized-email lookup against `clients` (see POST /api/maintenance)
+   *  — never a client-supplied value, never auto-creates a client. `null`
+   *  covers three cases that are never distinguished: no matching client
+   *  was found, the lookup failed (non-blocking — see the route's doc
+   *  comment), or this request predates
+   *  0027_maintenance_requests_client_id.sql. Same discipline as
+   *  contact_requests.marketCode/displayCurrency/... (0026). */
+  clientId: string | null;
 }
 
 /** Submissions from the public "Crear mi proyecto" CTA → /contact form
