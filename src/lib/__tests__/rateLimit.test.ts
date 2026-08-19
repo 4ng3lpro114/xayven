@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getClientIp, rateLimit } from "@/lib/rateLimit";
+import { getClientIp, getClientIpFromHeaders, rateLimit } from "@/lib/rateLimit";
 
 /**
  * Minimal stand-in for NextRequest — getClientIp() only ever touches
@@ -71,6 +71,43 @@ describe("getClientIp", () => {
   it("ignora entradas vacías producidas por comas dobles en X-Forwarded-For", () => {
     const req = makeRequest({ "x-forwarded-for": "203.0.113.9,,198.51.100.5" });
     expect(getClientIp(req as never)).toBe("198.51.100.5");
+  });
+});
+
+/**
+ * XAYVEN CORE Phase 3.1 — getClientIpFromHeaders() is the exact same
+ * extraction logic as getClientIp(), factored out to accept a
+ * `next/headers` headers()-shaped object (`{ get(name) }`) instead of a
+ * full NextRequest — used by commercialContext.ts's geo-IP market
+ * detection, which runs in Server Components that have no NextRequest to
+ * read. Deliberately mirrors getClientIp's own test cases 1:1 to prove
+ * the shared logic behaves identically regardless of which getter it's
+ * called through.
+ */
+describe("getClientIpFromHeaders", () => {
+  it("usa X-Real-IP cuando es una IP pública válida", () => {
+    const headers = new Headers({ "x-real-ip": "203.0.113.7" });
+    expect(getClientIpFromHeaders(headers)).toBe("203.0.113.7");
+  });
+
+  it("recorre X-Forwarded-For desde la derecha y toma la primera IP pública", () => {
+    const headers = new Headers({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" });
+    expect(getClientIpFromHeaders(headers)).toBe("203.0.113.9");
+  });
+
+  it("ignora entradas privadas/internas en X-Forwarded-For", () => {
+    const headers = new Headers({ "x-forwarded-for": "198.51.100.5, 10.0.0.1, 192.168.1.1" });
+    expect(getClientIpFromHeaders(headers)).toBe("198.51.100.5");
+  });
+
+  it("devuelve 'unknown' si no hay ningún header de proxy", () => {
+    const headers = new Headers({});
+    expect(getClientIpFromHeaders(headers)).toBe("unknown");
+  });
+
+  it("funciona igual con un objeto plano { get } — no exige una instancia real de Headers", () => {
+    const fakeHeaderList = { get: (name: string) => (name === "x-real-ip" ? "203.0.113.20" : null) };
+    expect(getClientIpFromHeaders(fakeHeaderList)).toBe("203.0.113.20");
   });
 });
 

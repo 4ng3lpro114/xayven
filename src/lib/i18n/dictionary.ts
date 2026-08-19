@@ -232,6 +232,22 @@ export interface Dictionary {
     marketExplanation: string;
     marketAutomaticLabel: string;
     marketNames: Record<string, string>;
+    /** XAYVEN CORE Phase 3.1 — currency display data for the redesigned
+     *  CommercialMarketSelector dropdown, keyed by market code.
+     *  `currencyName` is `null` for 'OTHER' on purpose: its row never
+     *  shows a "CODE — Currency name" line (see marketFallbackCountryLabel
+     *  below) — 'OTHER' is presented as its own distinct thing, never as
+     *  if it meant a specific country/currency. */
+    marketDetails: Record<string, { currencyName: string | null; symbol: string }>;
+    marketDetectedLabel: string;
+    marketManualLabel: string;
+    marketFallbackLabel: string;
+    /** Subtitle used ONLY for 'OTHER's row in the dropdown (e.g. "Otros
+     *  países" + " (OTHER)") — deliberately different wording from
+     *  marketNames.OTHER (e.g. "Otros mercados"), matching the approved
+     *  design. */
+    marketFallbackCountryLabel: string;
+    marketActiveLabel: string;
   };
 
   ai: {

@@ -11,7 +11,7 @@ import { buildMetadata } from "@/lib/seo";
 import { SITE_URL, WHATSAPP_NUMBER } from "@/lib/constants";
 import { notFound } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/supabaseServer";
-import { resolveCommercialMarket } from "@/lib/pricing/commercialContext";
+import { resolveCommercialMarket, toMarketDetectionState } from "@/lib/pricing/commercialContext";
 import { listPricingMarkets } from "@/lib/db/pricingMarketStore";
 
 const geistSans = Geist({
@@ -160,7 +160,7 @@ export default async function LocaleLayout({
           dict={dict}
           markets={activeMarkets.map((m) => ({ code: m.code, currency: m.currency }))}
           currentMarketCode={resolvedMarket.code}
-          isManual={marketSource === "explicit_cookie"}
+          detectionState={toMarketDetectionState(marketSource)}
         />
         <ChatWidget
           dict={dict.ai}
