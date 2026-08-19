@@ -1,41 +1,39 @@
 import "server-only";
+import { sendEmail as sendEmailShared } from "@/lib/email/send";
 import type { Client, Payment, Project } from "@/lib/payments/types";
 
 /**
- * Payment email notifications — reuses the exact Resend `fetch` pattern
- * already used by /api/contact and /api/maintenance. Same honest fallback:
- * without RESEND_API_KEY / CONTACT_EMAIL_TO, this just logs instead of
- * throwing, so a missing email config never breaks payment processing.
+ * Payment email notifications — XAYVEN CORE Phase 3.3: now built on the
+ * single shared `sendEmail()` (src/lib/email/send.ts) instead of its own
+ * copy of the Resend `fetch` call — the module doc comment there explains
+ * why the triplication existed and what it cost (only two of the three
+ * call sites ever set `reply_to`, this one being the odd one out).
+ *
+ * Same honest fallback as before: without RESEND_API_KEY / CONTACT_EMAIL_TO,
+ * this just logs instead of throwing, so a missing email config never
+ * breaks payment processing.
  *
  * Callers (src/lib/payments/service.ts) only invoke these from inside the
  * idempotency-guarded transition — i.e. at most once per real status
  * change, never once per webhook delivery.
  */
 
-async function sendEmail(params: { to: string; subject: string; text: string }): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.CONTACT_EMAIL_FROM ?? "XAYVEN <onboarding@resend.dev>";
+async function sendEmail(params: { to: string; subject: string; text: string; replyTo?: string }): Promise<void> {
+  const result = await sendEmailShared(params);
+  if (result.ok) return;
 
-  if (!apiKey) {
+  if (result.reason === "not_configured") {
     console.info("[payments/notify] Email delivery not configured, skipping:", {
       to: params.to,
       subject: params.subject,
     });
     return;
   }
-
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [params.to], subject: params.subject, text: params.text }),
-    });
-    if (!res.ok) {
-      console.error("[payments/notify] Resend API error:", await res.text());
-    }
-  } catch (error) {
-    console.error("[payments/notify] Unexpected error sending email:", error);
+  if (result.reason === "provider_error") {
+    console.error("[payments/notify] Resend API error:", result.detail);
+    return;
   }
+  console.error("[payments/notify] Unexpected error sending email:", result.detail);
 }
 
 function money(amount: number, currency: string): string {
@@ -64,6 +62,11 @@ export async function notifyPaymentApproved(payment: Payment, project: Project, 
   if (adminTo) {
     await sendEmail({
       to: adminTo,
+      // XAYVEN CORE Phase 3.3 — lets the admin reply straight to the
+      // client from this notification, same convenience Contact/
+      // Maintenance already had; `from` stays hello@xayven.com, this
+      // only affects where a reply goes.
+      replyTo: client.email,
       subject: `Nuevo pago recibido — ${project.name}`,
       text: [
         `Cliente: ${client.name} (${client.email})`,
