@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Check, ArrowUpRight } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
+import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics/track";
 
@@ -17,6 +18,11 @@ interface MaintenancePlanCardProps {
   priceLabel: string;
   ctaLabel: string;
   featured?: boolean;
+  /** XAYVEN CORE Phase 3.4 (UI) — badge copy shown only when `featured`
+   *  is true (dict.maintenance.featuredLabel). Purely a visual label —
+   *  which plan is `featured` is still decided entirely by the page
+   *  (`i === 1`), never by this component or by the presence of a label. */
+  featuredLabel?: string;
   delay?: number;
 }
 
@@ -34,6 +40,14 @@ interface MaintenancePlanCardProps {
  * to `shadow-glow-md` on hover instead) plus an arrow on the CTA matching
  * ServiceIndexCard's. No feature list, pricing, slug or tracking logic
  * touched.
+ *
+ * XAYVEN CORE Phase 3.4 (UI): the `featured` plan (Growth) was previously
+ * distinguished only by a slightly brighter border/shadow — easy to miss,
+ * especially in the single-column mobile stack. Adds an explicit
+ * `featuredLabel` badge (Badge's existing `solid` variant, no new
+ * component) when `featured` is true. Still purely a label: which plan
+ * is `featured` remains the page's decision (`i === 1` in
+ * maintenance/page.tsx), untouched here.
  */
 export function MaintenancePlanCard({
   slug,
@@ -44,6 +58,7 @@ export function MaintenancePlanCard({
   priceLabel,
   ctaLabel,
   featured = false,
+  featuredLabel,
   delay = 0,
 }: MaintenancePlanCardProps) {
   useEffect(() => {
@@ -55,12 +70,20 @@ export function MaintenancePlanCard({
     <Reveal delay={delay} className="h-full">
       <article
         className={cn(
-          "group flex h-full flex-col rounded-lg border p-6 transition-[border-color,box-shadow] duration-300",
+          "group relative flex h-full flex-col rounded-lg border p-6 transition-[border-color,box-shadow] duration-300",
           featured
             ? "border-border-accent bg-bg-elevated shadow-glow-sm hover:shadow-glow-md"
             : "border-border bg-bg-raised shadow-soft hover:border-border-accent hover:shadow-glow-sm"
         )}
       >
+        {featured && featuredLabel && (
+          <Badge
+            variant="solid"
+            className="absolute -top-3 left-6 shadow-glow-sm"
+          >
+            {featuredLabel}
+          </Badge>
+        )}
         <h3 className="text-lg font-semibold text-fg">{name}</h3>
         <p className="mt-1 text-sm text-accent-300">{tagline}</p>
         <p className="mt-3 text-sm leading-relaxed text-fg-muted">{who}</p>

@@ -505,6 +505,7 @@ export const es: Dictionary = {
     perMonthSuffix: "/mes",
     priceUnavailable: "Consultar",
     ctaLabel: "Solicitar mantenimiento",
+    featuredLabel: "Más elegido",
     about: {
       whatHeading: "¿Qué es XAYVEN Maintenance?",
       whatBody:
