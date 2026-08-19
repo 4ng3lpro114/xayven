@@ -23,7 +23,9 @@ export function WhyXayven({ dict }: { dict: Dictionary }) {
             return (
               <li key={item.title}>
                 <Reveal delay={0.04 * i}>
-                  <Icon className="size-5 text-accent-400" aria-hidden="true" />
+                  <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent-500/10 text-accent-400">
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
                   <h3 className="mt-3 text-base font-semibold text-fg">{item.title}</h3>
                   <p className="mt-1.5 text-sm text-fg-muted">{item.description}</p>
                 </Reveal>

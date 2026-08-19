@@ -100,8 +100,35 @@ interface CommercialMarketSelectorProps {
   activeLabel: string;
 }
 
-const MARKET_FLAGS: Record<string, string> = { CO: "🇨🇴", US: "🇺🇸", EU: "🇪🇺", OTHER: "🌎" };
-const DEFAULT_FLAG = "🌐";
+/**
+ * XAYVEN CORE Phase 3.4 (UI) — replaces the previous emoji flag glyphs
+ * (🇨🇴🇺🇸🇪🇺🌎), which render inconsistently across OS/font combinations
+ * (notably Windows) and read as the "genérico" weak point of this
+ * otherwise fully-custom control. A typographic mono badge for a real
+ * market code (CO/US/EU) plus `Globe2` for 'OTHER'/unknown — the same
+ * icon the "Automatic" row already uses further below — renders
+ * identically everywhere and stays on-brand (font-mono is the same
+ * treatment eyebrows/prices already use site-wide). Purely a visual
+ * swap: still keyed by `market.code`, never touches detectionState,
+ * the cookie, or which markets are selectable.
+ */
+function MarketGlyph({ code }: { code: string }) {
+  if (code === "OTHER" || code.length > 2) {
+    return (
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border-strong bg-bg-overlay text-fg-muted">
+        <Globe2 className="size-3.5" aria-hidden="true" />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border-strong bg-bg-overlay font-mono text-[0.65rem] font-semibold uppercase tracking-wide text-accent-300"
+      aria-hidden="true"
+    >
+      {code}
+    </span>
+  );
+}
 
 export function CommercialMarketSelector({
   markets,
@@ -223,7 +250,6 @@ export function CommercialMarketSelector({
   const currentCurrency = markets.find((m) => m.code === currentMarketCode)?.currency;
   const isFallback = detectionState === "fallback";
 
-  const closedFlag = MARKET_FLAGS[currentMarketCode] ?? DEFAULT_FLAG;
   const closedPrimary =
     !isFallback && currentDetails?.currencyName && currentCurrency
       ? `${currentCurrency} — ${currentDetails.currencyName}`
@@ -247,9 +273,7 @@ export function CommercialMarketSelector({
           open ? "border-accent-400" : "border-border-strong hover:border-border-accent focus:border-accent-400"
         )}
       >
-        <span className="text-lg leading-none" aria-hidden="true">
-          {closedFlag}
-        </span>
+        <MarketGlyph code={currentMarketCode} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-fg">{closedPrimary}</span>
           <span className="block truncate text-xs text-fg-subtle">{closedSubtitle}</span>
@@ -329,9 +353,7 @@ export function CommercialMarketSelector({
                         index === activeIndex ? "bg-accent-400/10 text-fg" : "text-fg-muted hover:bg-bg-raised hover:text-fg"
                       )}
                     >
-                      <span className="text-lg leading-none" aria-hidden="true">
-                        {MARKET_FLAGS[market.code] ?? DEFAULT_FLAG}
-                      </span>
+                      <MarketGlyph code={market.code} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{primary}</span>
                         <span className="block truncate text-xs text-fg-subtle">{subtitle}</span>

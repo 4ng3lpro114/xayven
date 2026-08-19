@@ -249,7 +249,9 @@ export default async function ServiceDetailPage({
           <ul className="mt-8 grid gap-4 sm:grid-cols-2">
             {content.problem.map((item, i) => (
               <Reveal key={item} delay={0.03 * i}>
-                <li className="rounded-lg border border-border bg-bg-raised p-5 text-sm text-fg-muted">{item}</li>
+                <li className="rounded-lg border border-border bg-bg-raised p-5 text-sm leading-relaxed text-fg-muted shadow-soft">
+                  {item}
+                </li>
               </Reveal>
             ))}
           </ul>
@@ -360,7 +362,7 @@ export default async function ServiceDetailPage({
                     : dict.services.priceQuote;
                 return (
                 <Reveal key={pkg.slug} delay={0.05 * i}>
-                  <div className="flex h-full flex-col rounded-lg border border-border bg-bg-raised p-6">
+                  <div className="flex h-full flex-col rounded-lg border border-border bg-bg-raised p-6 shadow-soft transition-[border-color,box-shadow] duration-300 hover:border-border-accent hover:shadow-glow-sm">
                     <TrackView eventType="pricing_package_view" packageSlug={pkg.slug} />
                     <h3 className="text-base font-semibold text-fg">{pkg.name}</h3>
                     <p className="mt-2 text-lg font-semibold text-accent-300">{priceText}</p>
@@ -369,7 +371,7 @@ export default async function ServiceDetailPage({
                       eventType="pricing_package_cta"
                       packageSlug={pkg.slug}
                       variant="secondary"
-                      className="mt-5"
+                      className="mt-auto pt-5"
                       withArrow
                     >
                       {sd.choosePackageLabel}

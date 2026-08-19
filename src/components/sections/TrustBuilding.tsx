@@ -22,9 +22,11 @@ export function TrustBuilding({ dict }: { dict: Dictionary }) {
             const Icon = ICONS[i % ICONS.length];
             return (
               <li key={item.title} className="flex gap-3.5">
-                <Reveal delay={0.05 * i} className="flex gap-3.5">
-                  <Icon className="mt-0.5 size-5 shrink-0 text-accent-400" aria-hidden="true" />
-                  <div>
+                <Reveal delay={0.05 * i} className="flex items-start gap-3.5">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-400">
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="pt-1.5">
                     <p className="text-sm font-semibold text-fg">{item.title}</p>
                     <p className="mt-1 text-sm text-fg-muted">{item.description}</p>
                   </div>

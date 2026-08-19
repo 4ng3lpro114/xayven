@@ -188,7 +188,10 @@ export default async function MaintenancePage({
             </h2>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {dict.maintenance.about.problems.map((item) => (
-                <li key={item} className="rounded-lg border border-border bg-bg-raised p-4 text-sm text-fg-muted">
+                <li
+                  key={item}
+                  className="rounded-lg border border-border bg-bg-raised p-4 text-sm leading-relaxed text-fg-muted shadow-soft"
+                >
                   {item}
                 </li>
               ))}
@@ -217,6 +220,7 @@ export default async function MaintenancePage({
                 priceLabel={plan.priceLabel}
                 ctaLabel={dict.maintenance.ctaLabel}
                 featured={i === 1}
+                featuredLabel={dict.maintenance.featuredLabel}
                 delay={0.05 * i}
               />
             ))}
@@ -233,16 +237,19 @@ export default async function MaintenancePage({
             heading={dict.maintenance.comparisonHeading}
             description={dict.maintenance.comparisonNote}
           />
-          <Reveal delay={0.1} className="mt-8 overflow-x-auto">
+          <Reveal
+            delay={0.1}
+            className="mt-8 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-bg-raised shadow-soft"
+          >
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
-                <tr>
-                  <th scope="col" className="w-40 border-b border-border" />
+                <tr className="bg-bg-elevated">
+                  <th scope="col" className="w-40 border-b border-border pl-5" />
                   {plans.map((plan) => (
                     <th
                       key={plan.slug}
                       scope="col"
-                      className="border-b border-border px-4 py-3 text-left font-semibold text-fg"
+                      className="border-b border-border px-4 py-4 text-left font-semibold text-fg"
                     >
                       {plan.displayName}
                     </th>
@@ -251,7 +258,10 @@ export default async function MaintenancePage({
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row" className="border-b border-border py-3 pr-4 text-left font-medium text-fg-subtle">
+                  <th
+                    scope="row"
+                    className="border-b border-border py-3 pl-5 pr-4 text-left font-medium text-fg-subtle"
+                  >
                     {dict.maintenance.comparisonPriceRow}
                   </th>
                   {plans.map((plan) => (
@@ -261,7 +271,10 @@ export default async function MaintenancePage({
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row" className="border-b border-border py-3 pr-4 text-left align-top font-medium text-fg-subtle">
+                  <th
+                    scope="row"
+                    className="border-b border-border py-3 pl-5 pr-4 text-left align-top font-medium text-fg-subtle"
+                  >
                     {dict.maintenance.comparisonWhoRow}
                   </th>
                   {plans.map((plan) => (
@@ -271,7 +284,7 @@ export default async function MaintenancePage({
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row" className="py-3 pr-4 text-left align-top font-medium text-fg-subtle">
+                  <th scope="row" className="py-3 pl-5 pr-4 text-left align-top font-medium text-fg-subtle">
                     {dict.maintenance.comparisonIncludesRow}
                   </th>
                   {plans.map((plan) => (

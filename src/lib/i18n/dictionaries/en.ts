@@ -492,6 +492,7 @@ export const en: Dictionary = {
     perMonthSuffix: "/mo",
     priceUnavailable: "Get a quote",
     ctaLabel: "Request maintenance",
+    featuredLabel: "Most chosen",
     about: {
       whatHeading: "What is XAYVEN Maintenance?",
       whatBody:

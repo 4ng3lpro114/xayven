@@ -299,6 +299,11 @@ export interface Dictionary {
      *  an active Pricing Core item. Never the normal path. */
     priceUnavailable: string;
     ctaLabel: string;
+    /** XAYVEN CORE Phase 3.4 (UI) — badge label for the featured plan
+     *  (MaintenancePlanCard's `featured` prop, set by the page via
+     *  `i === 1` / Growth). Purely a visual label — never used to decide
+     *  which plan is featured. */
+    featuredLabel: string;
     about: {
       whatHeading: string;
       whatBody: string;
