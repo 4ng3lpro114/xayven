@@ -3,11 +3,17 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import type { PricingCatalogItem, PricingType } from "@/lib/pricing/types";
 import type { PricingMarketPrice } from "@/lib/pricing/market/types";
 
 const inputClasses =
   "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-fg focus:border-accent-400 focus:outline-none disabled:opacity-50";
+
+const PRICE_TYPE_OPTIONS = [
+  { value: "FIXED", label: "Fijo" },
+  { value: "FROM", label: "Desde" },
+];
 
 /**
  * International Pricing — Phase D Admin. One row per Pricing Core item,
@@ -126,10 +132,21 @@ function MarketPriceRow({
       </div>
 
       <form id={formId} onSubmit={handleSubmit} className="contents">
-        <select name="priceType" defaultValue={existing?.priceType ?? item.priceType} className={inputClasses}>
-          <option value="FIXED">Fijo</option>
-          <option value="FROM">Desde</option>
-        </select>
+        {/* XAYVEN CORE Phase 3.5 (Admin UI consistency) — CustomSelect.tsx
+         *  instead of a native <select>; `className` shrinks its default
+         *  padding (px-4 py-3) to match this row's denser `inputClasses`
+         *  (px-3 py-2) so it still fits the fixed 7rem grid column. Its own
+         *  single root <div> still ends up as this `display:contents`
+         *  form's only child, so the grid layout is unaffected — same
+         *  `name="priceType"`, same defaultValue, same FormData contract. */}
+        <CustomSelect
+          id={`${formId}-priceType`}
+          name="priceType"
+          options={PRICE_TYPE_OPTIONS}
+          defaultValue={existing?.priceType ?? item.priceType}
+          placeholder="—"
+          className="px-3 py-2"
+        />
       </form>
 
       <input

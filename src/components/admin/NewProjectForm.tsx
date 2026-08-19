@@ -4,9 +4,11 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { AdminFormSection, AdminField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 
 const inputClasses = adminInputClasses;
+const CURRENCY_OPTIONS = ["COP", "USD"];
 
 export interface PreselectedClient {
   id: string;
@@ -24,6 +26,10 @@ export interface PreselectedClient {
  * sent instead of clientName/clientEmail/clientPhone. Without it, this is
  * the exact same form/flow as before — nothing about the original
  * behavior changed.
+ *
+ * XAYVEN CORE Phase 3.5 (Admin UI consistency) — currency now renders via
+ * CustomSelect.tsx instead of a native `<select>` — same field name, same
+ * submitted value, visual only.
  */
 export function NewProjectForm({
   preselectedClient = null,
@@ -127,10 +133,7 @@ export function NewProjectForm({
             />
           </AdminField>
           <AdminField label="Moneda" htmlFor="currency">
-            <select id="currency" name="currency" defaultValue="COP" className={inputClasses}>
-              <option value="COP">COP</option>
-              <option value="USD">USD</option>
-            </select>
+            <CustomSelect id="currency" name="currency" options={CURRENCY_OPTIONS} defaultValue="COP" placeholder="—" />
           </AdminField>
         </div>
       </AdminFormSection>

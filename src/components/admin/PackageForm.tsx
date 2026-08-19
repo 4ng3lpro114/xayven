@@ -4,11 +4,13 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 import { toLines, fromLines } from "@/lib/services/textLists";
 import { AdminFormSection, AdminField, AdminCheckboxField, adminInputClasses } from "@/components/admin/ui/AdminFormSection";
 import type { PricingCatalogItem, PricingCategory, PricingBillingInterval, PricingType } from "@/lib/pricing/types";
 
 const textareaClasses = `${adminInputClasses} font-mono text-xs`;
+const CURRENCY_OPTIONS = ["COP", "USD"];
 
 const CATEGORY_LABELS: Record<PricingCategory, string> = {
   package: "Paquete web",
@@ -59,6 +61,15 @@ export interface PackageFormValues {
  * Admin UI Polish — grouped into AdminFormSection blocks (Identificación /
  * Precio / Estado / Contenido) instead of a flat label-input run. Field
  * names, submit payload, and validation are byte-for-byte the same.
+ *
+ * XAYVEN CORE Phase 3.5 (Admin UI consistency) — category/billingInterval/
+ * priceType/currency now render via CustomSelect.tsx instead of a native
+ * `<select>`. category's `onValueChange` replaces its old `onChange` 1:1 —
+ * same `setCategory` call, same conditional "Contenido" section. The
+ * create-only `disabled={mode === "edit"}` on category/billingInterval is
+ * preserved via CustomSelect's own `disabled` prop (Phase 3.5 addition to
+ * that component) — edit mode still excludes both from FormData exactly
+ * like the native disabled `<select>`s did. Visual only.
  */
 export function PackageForm({
   mode,
@@ -170,35 +181,25 @@ export function PackageForm({
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <AdminField label="Categoría" htmlFor="category">
-            <select
+            <CustomSelect
               id="category"
               name="category"
               disabled={mode === "edit"}
+              options={Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }))}
               defaultValue={category}
-              onChange={(e) => setCategory(e.target.value as PricingCategory)}
-              className={adminInputClasses}
-            >
-              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => setCategory(v as PricingCategory)}
+              placeholder="—"
+            />
           </AdminField>
           <AdminField label="Intervalo de cobro" htmlFor="billingInterval">
-            <select
+            <CustomSelect
               id="billingInterval"
               name="billingInterval"
               disabled={mode === "edit"}
+              options={Object.entries(BILLING_LABELS).map(([value, label]) => ({ value, label }))}
               defaultValue={initialValues?.billingInterval ?? "ONE_TIME"}
-              className={adminInputClasses}
-            >
-              {Object.entries(BILLING_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              placeholder="—"
+            />
           </AdminField>
         </div>
       </AdminFormSection>
@@ -206,13 +207,13 @@ export function PackageForm({
       <AdminFormSection title="Precio">
         <div className="grid gap-5 sm:grid-cols-2">
           <AdminField label="Tipo de precio" htmlFor="priceType">
-            <select id="priceType" name="priceType" defaultValue={initialValues?.priceType ?? "FIXED"} className={adminInputClasses}>
-              {Object.entries(PRICE_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              id="priceType"
+              name="priceType"
+              options={Object.entries(PRICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              defaultValue={initialValues?.priceType ?? "FIXED"}
+              placeholder="—"
+            />
           </AdminField>
           <AdminField label="Precio base" htmlFor="basePrice">
             <input
@@ -228,10 +229,13 @@ export function PackageForm({
           </AdminField>
         </div>
         <AdminField label="Moneda" htmlFor="currency">
-          <select id="currency" name="currency" defaultValue={initialValues?.currency ?? "COP"} className={adminInputClasses}>
-            <option value="COP">COP</option>
-            <option value="USD">USD</option>
-          </select>
+          <CustomSelect
+            id="currency"
+            name="currency"
+            options={CURRENCY_OPTIONS}
+            defaultValue={initialValues?.currency ?? "COP"}
+            placeholder="—"
+          />
         </AdminField>
       </AdminFormSection>
 

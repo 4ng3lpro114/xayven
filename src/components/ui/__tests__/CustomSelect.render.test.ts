@@ -68,3 +68,65 @@ describe("CustomSelect — estado cerrado / backbone de FormData", () => {
     expect(html).not.toContain("<select");
   });
 });
+
+/**
+ * XAYVEN CORE Phase 3.5 (Admin UI consistency) — the two additions this
+ * phase made to CustomSelect: `{value,label}` options (Admin's codes vs.
+ * human labels, e.g. "QUOTE_ONLY" / "Solo cotización...") and `disabled`
+ * (PackageForm's create-only category/billingInterval). Same render-only
+ * scope as the suite above — proves the hidden input/FormData contract,
+ * never simulates opening the panel.
+ */
+describe("CustomSelect — opciones {value,label} y disabled (Admin, Phase 3.5)", () => {
+  const LABEL_OPTIONS = [
+    { value: "QUOTE_ONLY", label: "Solo cotización (no muestra ningún precio)" },
+    { value: "BASE_REFERENCE", label: "Referencia al precio base COP" },
+  ];
+
+  it("con opciones {value,label} → el input oculto lleva el value (código), el trigger muestra el label", () => {
+    const html = renderToString(
+      createElement(CustomSelect, {
+        id: "f-fallbackBehavior",
+        name: "fallbackBehavior",
+        options: LABEL_OPTIONS,
+        placeholder: "—",
+        defaultValue: "QUOTE_ONLY",
+      })
+    );
+    expect(html).toContain('name="fallbackBehavior"');
+    expect(html).toContain('value="QUOTE_ONLY"');
+    expect(html).toContain("Solo cotización (no muestra ningún precio)");
+    // El código crudo nunca se muestra como texto visible del trigger.
+    expect(html).not.toMatch(/>QUOTE_ONLY</);
+  });
+
+  it("disabled → el input oculto también queda disabled, igual que un <select disabled> nativo excluido de FormData", () => {
+    const html = renderToString(
+      createElement(CustomSelect, {
+        id: "f-category",
+        name: "category",
+        options: LABEL_OPTIONS,
+        placeholder: "—",
+        defaultValue: "QUOTE_ONLY",
+        disabled: true,
+      })
+    );
+    const hiddenInput = html.match(/<input[^>]*name="category"[^>]*>/)?.[0] ?? "";
+    expect(hiddenInput).toContain('disabled=""');
+    const trigger = html.match(/<button[^>]*>/)?.[0] ?? "";
+    expect(trigger).toContain('disabled=""');
+  });
+
+  it("sin disabled (default) → ni el input oculto ni el trigger llevan el atributo disabled", () => {
+    const html = renderToString(
+      createElement(CustomSelect, {
+        id: "f-category",
+        name: "category",
+        options: LABEL_OPTIONS,
+        placeholder: "—",
+        defaultValue: "QUOTE_ONLY",
+      })
+    );
+    expect(html).not.toContain("disabled=");
+  });
+});
