@@ -3,7 +3,12 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/auth/admin";
 import { getClientIp, rateLimit } from "@/lib/rateLimit";
-import { createClient, createProject, getClientById, markClientAsCommercial } from "@/lib/db/paymentsStore";
+import {
+  createClientOrGetExisting,
+  createProject,
+  getClientById,
+  markClientAsCommercial,
+} from "@/lib/db/paymentsStore";
 
 export const runtime = "nodejs";
 
@@ -80,7 +85,19 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // zod's .refine already guarantees these are present here.
-      const client = await createClient({
+      //
+      // XAYVEN CORE Phase 2 fix: this used to call createClient()
+      // directly, which throws a raw 23505 (unique_violation) — surfaced
+      // to the admin as a generic "creation_failed" 500 — whenever the
+      // typed email already belonged to an existing client (see the Phase
+      // 2 audit's Risks section). createClientOrGetExisting() is the same
+      // find-or-create-by-normalized-email primitive every other
+      // client-creation path in this codebase already uses (Lead →
+      // Cliente, Solicitud → Cliente): reuses the existing client instead
+      // of duplicating/erroring, creates a new one only when truly none
+      // exists. Scoped to exactly this one call — no other behavior in
+      // this route changes.
+      const { client } = await createClientOrGetExisting({
         name: parsed.data.clientName!,
         email: parsed.data.clientEmail!,
         phone: parsed.data.clientPhone || null,
