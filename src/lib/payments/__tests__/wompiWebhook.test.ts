@@ -136,6 +136,25 @@ describe("verifyWompiEnvironment", () => {
     delete (event as { environment?: string }).environment;
     expect(verifyWompiEnvironment(event, "sandbox")).toBe(true);
   });
+
+  // XAYVEN CORE Phase 5 — a real production webhook delivery sent
+  // environment: "prod", not "production" (see the doc comment on
+  // verifyWompiEnvironment itself). These 3 cases were entirely
+  // uncovered before this — nobody had verified the production branch
+  // against a real delivery until it broke in production.
+  it("accepts 'prod' when configured for production", () => {
+    expect(verifyWompiEnvironment(buildEvent({ environment: "prod" }), "production")).toBe(true);
+  });
+
+  it("rejects 'production' (the old, disproven assumption) when configured for production", () => {
+    expect(verifyWompiEnvironment(buildEvent({ environment: "production" }), "production")).toBe(
+      false
+    );
+  });
+
+  it("rejects 'test' when configured for production", () => {
+    expect(verifyWompiEnvironment(buildEvent({ environment: "test" }), "production")).toBe(false);
+  });
 });
 
 describe("extractWompiTransaction", () => {

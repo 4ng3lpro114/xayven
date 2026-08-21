@@ -64,16 +64,27 @@ export function verifyWompiChecksum(event: WompiEvent, secret: string): boolean 
 }
 
 /**
- * Wompi's `environment` is "test" for Sandbox keys, "production" for Live
- * — this rejects a sandbox event being replayed against a production
- * deployment (or vice versa). Skipped (returns true) if the event doesn't
- * carry the field, since its presence isn't guaranteed by every account
- * configuration — the checksum (tied to the environment-specific events
- * secret) remains the primary guard either way.
+ * Wompi's `environment` is "test" for Sandbox keys — confirmed by the
+ * existing test coverage below, unchanged. For Live/production it is
+ * **"prod"**, not "production": the original assumption here (this
+ * comment previously said "production", "confirmed Aug 2026" per this
+ * file's own header) was contradicted by a real production webhook
+ * delivery (XAYVEN CORE Phase 5 — Wompi payment state investigation,
+ * 2026-08-21): a genuinely APPROVED transaction, with a correctly
+ * verified checksum (proving WOMPI_EVENTS_SECRET was right), was rejected
+ * here with `{"got":"prod"}` — every real production webhook was
+ * unconditionally rejected regardless of how WOMPI_ENV was configured,
+ * because "prod" could never equal either literal this function accepted
+ * before. This rejects a sandbox event being replayed against a
+ * production deployment (or vice versa). Skipped (returns true) if the
+ * event doesn't carry the field, since its presence isn't guaranteed by
+ * every account configuration — the checksum (tied to the
+ * environment-specific events secret) remains the primary guard either
+ * way.
  */
 export function verifyWompiEnvironment(event: WompiEvent, configuredEnv: string): boolean {
   if (!event.environment) return true;
-  const expected = configuredEnv === "production" ? "production" : "test";
+  const expected = configuredEnv === "production" ? "prod" : "test";
   return event.environment === expected;
 }
 
