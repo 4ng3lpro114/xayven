@@ -29,13 +29,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node 24 — matches the runtime this repo was actually audited
-      # against (v24.18.0, XAYVEN CORE Phase 4.5 audit). Bumping this is a
-      # deliberate future change, not something that should drift silently.
-      - name: Setup Node.js 24.18.0
+      # Node 22.x — XAYVEN CORE Phase 5 (Node Runtime Alignment). Matches
+      # the real production runtime: Hostinger → XAYVEN → Ajustes y
+      # reimplementación → Versión del Node shows 22.x actually selected
+      # and running. Hostinger only exposes a major/minor line selector
+      # (24.x / 22.x / 20.x / 18.x), never an exact patch — so there is no
+      # evidence available to justify pinning a specific 22.X.Y the way
+      # Phase 4.5 pinned an exact 24.18.0. This intentionally REPLACES the
+      # Phase 4.5 pin (which matched local/CI, not production) rather than
+      # adding a second job, so CI now tests the same major runtime
+      # production actually executes.
+      #
+      # KNOWN RESIDUAL RISK, documented not resolved here: geoip-lite
+      # 2.0.3 (a direct production dependency, see next.config.ts's
+      # serverExternalPackages) declares "engines": { "node": ">=24.0.0" }
+      # in its own package.json — a documented mismatch against this
+      # Node 22.x pin and against Hostinger's real Node 22.x runtime.
+      # Read the installed source (node_modules/geoip-lite/lib/*.js):
+      # plain CommonJS (require('fs')/require('net')/require('path')), no
+      # Node-24-exclusive API found. No engine-strict in this repo (no
+      # .npmrc), so `npm ci` should only warn (EBADENGINE), never fail, on
+      # this mismatch — inferred from the absent engine-strict setting,
+      # not empirically observed (no Node 22.x available to test against
+      # locally; this workflow's own first real run is the actual proof).
+      # geoip-lite already runs in real production on Node 22.x today
+      # without a reported incident, and its own lookupCountryFromIp()
+      # try/catch (Phase 3.1) degrades to the default market on any
+      # failure rather than crashing a request. Not
+      # touched, updated, or replaced here — a distinct scope, explicitly
+      # out of this change.
+      - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
-          node-version: "24.18.0"
+          node-version: "22.x"
           cache: "npm"
 
       - name: Install dependencies
