@@ -7,6 +7,7 @@ import type {
   ProviderTransactionStatus,
 } from "@/lib/payments/provider";
 import type { PaymentStatus } from "@/lib/payments/types";
+import { logReconciliationEvent } from "@/lib/payments/reconciliationLog";
 
 /**
  * Wompi (Colombia). Integration built against the current official docs
@@ -125,18 +126,69 @@ export class WompiProvider implements PaymentProvider {
 
   async fetchTransactionStatus(transactionId: string): Promise<ProviderTransactionStatus | null> {
     const privateKey = process.env.WOMPI_PRIVATE_KEY;
-    if (!privateKey) return null;
+    if (!privateKey) {
+      logReconciliationEvent("PROVIDER_LOOKUP_FAILED", "WOMPI", {
+        transactionId,
+        reason: "not_configured",
+      });
+      return null;
+    }
 
-    const res = await fetch(`${getBaseUrl()}/transactions/${encodeURIComponent(transactionId)}`, {
-      headers: { Authorization: `Bearer ${privateKey}` },
-      cache: "no-store",
-    });
+    // Payment Reconciliation Observability phase — this used to be a bare
+    // `await fetch(...)` with no try/catch: a network failure/timeout here
+    // threw uncaught, all the way up through reconcileTransaction() into
+    // the return page's Server Component render, with zero diagnostic
+    // trail. The catch below only logs and re-throws the exact same
+    // error — behavior is unchanged, the caller still sees the same
+    // exception, this only adds a breadcrumb on the way out.
+    let res: Response;
+    try {
+      res = await fetch(`${getBaseUrl()}/transactions/${encodeURIComponent(transactionId)}`, {
+        headers: { Authorization: `Bearer ${privateKey}` },
+        cache: "no-store",
+      });
+    } catch (error) {
+      logReconciliationEvent("PROVIDER_LOOKUP_FAILED", "WOMPI", {
+        transactionId,
+        reason: "fetch_failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      logReconciliationEvent("PROVIDER_LOOKUP_FAILED", "WOMPI", {
+        transactionId,
+        reason: "http_error",
+        httpStatus: res.status,
+      });
+      return null;
+    }
 
-    const body = (await res.json()) as WompiTransactionResponse;
+    // Same reasoning as the fetch() try/catch above: `res.json()` can
+    // throw on a malformed body — previously uncaught, now logged and
+    // re-thrown unchanged.
+    let body: WompiTransactionResponse;
+    try {
+      body = (await res.json()) as WompiTransactionResponse;
+    } catch (error) {
+      logReconciliationEvent("PROVIDER_LOOKUP_FAILED", "WOMPI", {
+        transactionId,
+        reason: "invalid_json",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
     const tx = body.data;
-    if (!tx?.id) return null;
+    if (!tx?.id) {
+      logReconciliationEvent("PROVIDER_LOOKUP_FAILED", "WOMPI", {
+        transactionId,
+        reason: "missing_transaction_in_response",
+        httpStatus: res.status,
+      });
+      return null;
+    }
 
     return {
       transactionId: tx.id,

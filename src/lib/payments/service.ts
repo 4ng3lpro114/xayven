@@ -2,6 +2,7 @@ import "server-only";
 import { getProvider } from "@/lib/payments/registry";
 import { generatePaymentReference } from "@/lib/payments/reference";
 import { notifyPaymentApproved, notifyPaymentDeclined } from "@/lib/payments/notify";
+import { logReconciliationEvent } from "@/lib/payments/reconciliationLog";
 import {
   createPayment,
   getPendingPayment,
@@ -346,17 +347,53 @@ export async function reconcileTransaction(
   provider: PaymentProviderName,
   transactionId: string
 ): Promise<ApplyStatusResult | null> {
+  logReconciliationEvent("RECONCILIATION_STARTED", provider, { transactionId });
+
   const providerImpl = getProvider(provider);
   const status = await providerImpl.fetchTransactionStatus(transactionId);
-  if (!status) return null;
+  if (!status) {
+    // The provider-specific implementation (e.g. wompi.ts) already logged
+    // exactly why (not configured / fetch failed / http error / invalid
+    // response) — this is only the caller-side confirmation that
+    // reconciliation stopped here, without repeating that detail.
+    logReconciliationEvent("RECONCILIATION_FAILED", provider, {
+      transactionId,
+      reason: "no_status_from_provider",
+    });
+    return null;
+  }
 
-  return applyProviderStatus({
+  logReconciliationEvent("PROVIDER_STATUS_RECEIVED", provider, {
+    transactionId: status.transactionId,
+    reportedStatus: status.status,
+    reference: status.reference,
+  });
+
+  const result = await applyProviderStatus({
     provider,
     providerTransactionId: status.transactionId,
     reportedStatus: status.status,
     reference: status.reference,
     rawPayload: status.raw,
   });
+
+  if (!result) {
+    logReconciliationEvent("RECONCILIATION_FAILED", provider, {
+      transactionId: status.transactionId,
+      reference: status.reference,
+      reason: "payment_not_found",
+    });
+    return null;
+  }
+
+  logReconciliationEvent("RECONCILIATION_COMPLETED", provider, {
+    transactionId: status.transactionId,
+    paymentId: result.payment.id,
+    finalStatus: result.payment.status,
+    wasNewTransition: result.wasNewTransition,
+  });
+
+  return result;
 }
 
 /**
