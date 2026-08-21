@@ -83,6 +83,13 @@ async function lookupCountryFromIp(ip: string): Promise<string | null> {
     const lookup = mod.lookup ?? mod.default?.lookup;
     return lookup?.(ip)?.country ?? null;
   } catch {
+    // Phase 4.4 — this used to fail completely silently, which is exactly
+    // what made the Phase 3.1 CJS/ESM interop bug invisible in production
+    // (see the doc comment above). Deliberately no `error`, no `ip`, no
+    // stack — just a fixed, safe line so a systemic geoip failure is at
+    // least visible server-side instead of only inferable from every
+    // request quietly falling back to the default market.
+    console.warn("[geoip] country lookup failed, falling back to default market");
     return null;
   }
 }
