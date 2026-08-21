@@ -18,6 +18,42 @@ const nextConfig: NextConfig = {
    * own internal path resolution.
    */
   serverExternalPackages: ["geoip-lite"],
+
+  /**
+   * XAYVEN CORE Phase 4.3 (Security Headers Hardening) — closes the
+   * Strict-Transport-Security / X-Content-Type-Options / X-Frame-Options
+   * gaps found by the Production Readiness Audit. Confirmed via a
+   * read-only HEAD check against https://xayven.com that HTTP already
+   * redirects to HTTPS at the Hostinger CDN edge (no legitimate HTTP
+   * flow to preserve), so HSTS is safe to enable. `includeSubDomains` is
+   * deliberately omitted: `staging.xayven.com` resolves to a separate,
+   * unrelated PHP application outside this repo's control, so subdomain
+   * HSTS enforcement can't be verified safe from here. Content-Security-
+   * Policy, Permissions-Policy, and Referrer-Policy are intentionally out
+   * of scope for this phase (CSP needs its own dedicated audit).
+   */
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "SAMEORIGIN",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
