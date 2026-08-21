@@ -1,0 +1,54 @@
+name: CI
+
+# XAYVEN CORE Phase 4.5 — validation-only guardrail. Runs the exact same
+# 4 checks that have been run by hand before every phase commit so far
+# (typecheck, lint, test, build). Deliberately does nothing else: no
+# deploy step, no Hostinger/Supabase connection, no secrets, no write
+# permissions. If this workflow ever grows a deploy job, that must be a
+# separate, explicitly-approved phase — not an addition to this file.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feat/services-commercial-platform
+
+# Read-only by default for every job in this workflow (GITHUB_TOKEN).
+# Nothing here needs to write to the repo, comment on PRs, or touch
+# packages/deployments.
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: typecheck / lint / test / build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node 24 — matches the runtime this repo was actually audited
+      # against (v24.18.0, XAYVEN CORE Phase 4.5 audit). Bumping this is a
+      # deliberate future change, not something that should drift silently.
+      - name: Setup Node.js 24.18.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
